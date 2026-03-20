@@ -1,0 +1,50 @@
+# === 编译输出 (Compiled Files) ===
+*.o
+*.obj
+*.out
+*.exe
+*.app
+# macOS 上的动态库和静态库
+*.dylib
+*.a
+*.so
+
+# === 构建目录 (Build Directories) ===
+# 建议将所有编译生成物放在 build 文件夹中
+[Bb]uild/
+bin/
+obj/
+out/
+Debug/
+Release/
+
+# === CMake 产生的中间文件 ===
+CMakeCache.txt
+CMakeFiles/
+CMakeLists.txt.user
+cmake_install.cmake
+install_manifest.txt
+Makefile
+_deps/
+
+# === VS Code 配置文件 ===
+# 如果你想让团队成员共享调试配置，可以不忽略 .vscode
+# 但通常建议忽略其中的本地路径配置
+.vscode/ipch/
+.vscode/browse.vc.db
+.vscode/canvas.vc.db
+# .vscode/launch.json
+# .vscode/tasks.json
+
+# === macOS 系统文件 (非常重要) ===
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# === 备份与临时文件 ===
+*.swp
+*.bak
+*~
+.stackdump
