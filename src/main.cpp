@@ -13,6 +13,8 @@
 #include <queue>
 #include <thread>
 #include <condition_variable>
+#include <random>
+#include <chrono>
 
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -22,18 +24,16 @@ using tcp = boost::asio::ip::tcp;
 using json = nlohmann::json;
 
 class Session;
+class Server;
 
 struct DbTask {
     std::string doc_id;
     std::string payload;
 };
 
-class Session;
-class Server; // 前向声明
-
 class Room {
     std::string doc_id_;
-    Server& server_; 
+    Server& server_;
     sqlite3* db_;
     std::unordered_set<Session*> sessions_;
     std::mutex mutex_;
@@ -42,23 +42,21 @@ class Room {
 public:
     Room(std::string doc_id, Server& server, sqlite3* db) 
         : doc_id_(std::move(doc_id)), server_(server), db_(db) {
-        std::cout << "🏠 [房间] 文档 " << doc_id_ << " 被激活在内存中。" << std::endl;
+        std::cout << "🏠 [Room] Document " << doc_id_ << " activated in memory." << std::endl;
     }
 
     void join(Session* session);
     void leave(Session* session);
     void broadcast_except(Session* sender, const std::string& message);
     void send_history(Session* session); 
-    
     void save_event(const std::string& payload);
-
     uint32_t generate_site_id() { return next_site_id_++; }
+    const std::string& doc_id() const { return doc_id_; }
 };
 
 class Server {
     std::unordered_map<std::string, std::shared_ptr<Room>> rooms_;
     std::mutex mutex_;
-    sqlite3* db_ = nullptr;
 
     std::queue<DbTask> db_queue_;
     std::mutex db_mutex_;
@@ -66,17 +64,48 @@ class Server {
     std::thread db_thread_;
     bool stop_db_ = false;
 
+    std::unordered_map<std::string, Session*> active_users_;
+    std::mutex user_mutex_;
+
 public:
+    sqlite3* db_ = nullptr;
     Server() {
         if (sqlite3_open("collab_doc_v2.db", &db_)) {
-            std::cerr << "无法打开数据库!" << std::endl; exit(1);
+            std::cerr << "Failed to open database!" << std::endl; exit(1);
         }
-        
         sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
         sqlite3_exec(db_, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
         
         const char* sql = "CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, doc_id TEXT, payload TEXT);";
         sqlite3_exec(db_, sql, nullptr, nullptr, nullptr);
+
+        const char* create_users_table_sql = 
+        "CREATE TABLE IF NOT EXISTS users ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "username TEXT UNIQUE NOT NULL, "
+        "password TEXT NOT NULL"
+        ");";
+
+        char* errMsgUser = nullptr;
+        if (sqlite3_exec(db_, create_users_table_sql, nullptr, nullptr, &errMsgUser) != SQLITE_OK) {
+            std::cerr << "Failed to create users table" << std::endl;
+            sqlite3_free(errMsgUser);
+        } else {
+            std::cout << "✅ Account Database Ready!" << std::endl;
+        }
+
+        const char* create_invite_codes_sql =
+        "CREATE TABLE IF NOT EXISTS invite_codes ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "code TEXT UNIQUE NOT NULL, "
+        "doc_id TEXT NOT NULL, "
+        "room_name TEXT NOT NULL DEFAULT '', "
+        "created_by TEXT NOT NULL, "
+        "used INTEGER DEFAULT 0, "
+        "max_uses INTEGER DEFAULT 1, "
+        "expires_at INTEGER DEFAULT NULL"
+        ");";
+        sqlite3_exec(db_, create_invite_codes_sql, nullptr, nullptr, nullptr);
 
         db_thread_ = std::thread(&Server::db_worker_loop, this);
     }
@@ -102,7 +131,24 @@ public:
     void push_db_task(const std::string& doc_id, const std::string& payload) {
         std::lock_guard<std::mutex> lock(db_mutex_);
         db_queue_.push({doc_id, payload});
-        db_cv_.notify_one(); 
+        db_cv_.notify_one();
+    }
+
+    void register_user(const std::string& username, Session* session);
+    void unregister_user(const std::string& username, Session* session);
+
+    std::string generate_invite_code() {
+        static const char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        static std::mt19937 rng(std::random_device{}());
+        static std::uniform_int_distribution<int> dist(0, 35);
+        std::string code(6, ' ');
+        for (auto& c : code) c = chars[dist(rng)];
+        return code;
+    }
+
+    std::string generate_doc_id(const std::string& username) {
+        auto ts = std::chrono::steady_clock::now().time_since_epoch().count();
+        return username + "_" + std::to_string(ts);
     }
 
 private:
@@ -121,23 +167,17 @@ private:
                 task = std::move(db_queue_.front());
                 db_queue_.pop();
             }
-
-        
             sqlite3_bind_text(stmt, 1, task.doc_id.c_str(), -1, SQLITE_TRANSIENT);
             sqlite3_bind_text(stmt, 2, task.payload.c_str(), -1, SQLITE_TRANSIENT);
             sqlite3_step(stmt);
-            sqlite3_reset(stmt); 
+            sqlite3_reset(stmt);
             sqlite3_clear_bindings(stmt);
-            
-            
         }
         sqlite3_finalize(stmt);
     }
 };
 
-void Room::save_event(const std::string& payload) {
-    server_.push_db_task(doc_id_, payload);
-}
+void Room::save_event(const std::string& payload) { server_.push_db_task(doc_id_, payload); }
 
 class Session : public std::enable_shared_from_this<Session> {
     websocket::stream<beast::tcp_stream> ws_;
@@ -150,29 +190,21 @@ class Session : public std::enable_shared_from_this<Session> {
     std::queue<std::string> write_queue_;
     bool is_writing_ = false;
 
+    std::string username_; 
+
 public:
     Session(tcp::socket&& socket, Server& server)
         : ws_(std::move(socket)), server_(server) {}
 
-    ~Session() { if (room_) room_->leave(this); }
-
-    void run() {
-        net::dispatch(ws_.get_executor(),
-            beast::bind_front_handler(&Session::on_run, shared_from_this()));
+    ~Session() { 
+        if (!username_.empty()) server_.unregister_user(username_, this);
+        if (room_) room_->leave(this); 
     }
 
-    void on_run() {
-        ws_.async_accept(beast::bind_front_handler(&Session::on_accept, shared_from_this()));
-    }
-
-    void on_accept(beast::error_code ec) {
-        if (ec) return;
-        do_read();
-    }
-
-    void do_read() {
-        ws_.async_read(buffer_, beast::bind_front_handler(&Session::on_read, shared_from_this()));
-    }
+    void run() { net::dispatch(ws_.get_executor(), beast::bind_front_handler(&Session::on_run, shared_from_this())); }
+    void on_run() { ws_.async_accept(beast::bind_front_handler(&Session::on_accept, shared_from_this())); }
+    void on_accept(beast::error_code ec) { if (!ec) do_read(); }
+    void do_read() { ws_.async_read(buffer_, beast::bind_front_handler(&Session::on_read, shared_from_this())); }
 
     void on_read(beast::error_code ec, std::size_t bytes_transferred) {
         if (ec) return;
@@ -183,43 +215,282 @@ public:
             json data = json::parse(payload);
             
             if (!joined_) {
-                if (data["type"] == "join") {
-                    std::string doc_id = data["doc_id"];
+                std::string msg_type = data.value("type", "");
+
+                if (msg_type == "register") {
+                    std::string u = data.value("username", "");
+                    std::string p = data.value("password", "");
+                    std::string sql = "INSERT INTO users (username, password) VALUES ('" + u + "', '" + p + "');";
+                    char* errMsg = nullptr;
+                    json res = {{"type", "register_res"}};
+                    if (sqlite3_exec(server_.db_, sql.c_str(), nullptr, nullptr, &errMsg) != SQLITE_OK) {
+                        res["success"] = false; res["msg"] = "Registration failed!"; sqlite3_free(errMsg);
+                    } else {
+                        res["success"] = true; res["msg"] = "Registration successful!";
+                    }
+                    send(res.dump());
+                } 
+                else if (msg_type == "login") {
+                    std::string u = data.value("username", "");
+                    std::string p = data.value("password", "");
+                    std::string sql = "SELECT id FROM users WHERE username = '" + u + "' AND password = '" + p + "';";
+                    bool login_success = false;
+                    auto cb = [](void* data, int, char**, char**) -> int { *static_cast<bool*>(data) = true; return 0; };
+                    char* errMsg = nullptr;
+                    sqlite3_exec(server_.db_, sql.c_str(), cb, &login_success, &errMsg);
+                    
+                    json res = {{"type", "login_res"}};
+                    if (login_success) {
+                        username_ = u;
+                        server_.register_user(username_, this);
+
+                        res["success"] = true; res["username"] = u; res["msg"] = "Login successful!";
+                    } else {
+                        res["success"] = false; res["msg"] = "Invalid credentials!";
+                    }
+                    if (errMsg) sqlite3_free(errMsg);
+                    send(res.dump());
+                } 
+                else if (msg_type == "create_room") {
+                    if (username_.empty()) {
+                        send(R"({"type":"create_room_res","success":false,"msg":"请先登录"})");
+                    } else {
+                        std::string doc_id = server_.generate_doc_id(username_);
+                        std::string room_name = data.value("room_name", "未命名房间");
+                        std::string code;
+                        while (true) {
+                            code = server_.generate_invite_code();
+                            sqlite3_stmt* chk;
+                            sqlite3_prepare_v2(server_.db_, "SELECT id FROM invite_codes WHERE code=?;", -1, &chk, nullptr);
+                            sqlite3_bind_text(chk, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+                            bool exists = (sqlite3_step(chk) == SQLITE_ROW);
+                            sqlite3_finalize(chk);
+                            if (!exists) break;
+                        }
+
+                        // invite_type: "once" | "timed" | "permanent"
+                        std::string invite_type = data.value("invite_type", "once");
+                        int max_uses = 1;
+                        int64_t expires_at = 0;
+
+                        if (invite_type == "permanent") {
+                            max_uses = -1;
+                        } else if (invite_type == "timed") {
+                            max_uses = -1;
+                            int hours = data.value("expire_hours", 24);
+                            auto now = std::chrono::system_clock::now().time_since_epoch();
+                            expires_at = std::chrono::duration_cast<std::chrono::seconds>(now).count() + hours * 3600;
+                        }
+
+                        sqlite3_stmt* ins;
+                        sqlite3_prepare_v2(server_.db_,
+                            "INSERT INTO invite_codes (code, doc_id, room_name, created_by, max_uses, expires_at) VALUES (?,?,?,?,?,?);",
+                            -1, &ins, nullptr);
+                        sqlite3_bind_text(ins, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(ins, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(ins, 3, room_name.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(ins, 4, username_.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_int(ins, 5, max_uses);
+                        if (expires_at > 0) sqlite3_bind_int64(ins, 6, expires_at);
+                        else sqlite3_bind_null(ins, 6);
+                        sqlite3_step(ins);
+                        sqlite3_finalize(ins);
+
+                        json res = {{"type", "create_room_res"}, {"success", true},
+                                    {"code", code}, {"doc_id", doc_id},
+                                    {"room_name", room_name}, {"invite_type", invite_type}};
+                        if (expires_at > 0) res["expires_at"] = expires_at;
+                        send(res.dump());
+                        std::cout << "🎉 用户 " << username_ << " 创建房间 [" << room_name << "] "
+                                  << doc_id << "，邀请码: " << code << " [" << invite_type << "]" << std::endl;
+                    }
+                }
+                else if (msg_type == "join_with_code") {
+                    std::string code = data.value("code", "");
+                    if (username_.empty()) {
+                        send(R"({"type":"join_with_code_res","success":false,"msg":"请先登录"})");
+                    } else if (code.empty()) {
+                        send(R"({"type":"join_with_code_res","success":false,"msg":"邀请码不能为空"})");
+                    } else {
+                        // 查询邀请码：一次性(max_uses=1,used=0) 或 时效/永久(max_uses=-1)
+                        sqlite3_stmt* sel;
+                        sqlite3_prepare_v2(server_.db_,
+                            "SELECT doc_id, room_name, max_uses, expires_at FROM invite_codes WHERE code=? AND (max_uses=-1 OR used=0);",
+                            -1, &sel, nullptr);
+                        sqlite3_bind_text(sel, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+                        json res = {{"type", "join_with_code_res"}};
+                        if (sqlite3_step(sel) == SQLITE_ROW) {
+                            std::string doc_id = reinterpret_cast<const char*>(sqlite3_column_text(sel, 0));
+                            std::string room_name = reinterpret_cast<const char*>(sqlite3_column_text(sel, 1));
+                            int max_uses = sqlite3_column_int(sel, 2);
+                            bool has_expiry = (sqlite3_column_type(sel, 3) != SQLITE_NULL);
+                            int64_t expires_at = has_expiry ? sqlite3_column_int64(sel, 3) : 0;
+                            sqlite3_finalize(sel);
+
+                            // 检查是否过期
+                            if (has_expiry) {
+                                auto now = std::chrono::system_clock::now().time_since_epoch();
+                                int64_t now_sec = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+                                if (now_sec > expires_at) {
+                                    res["success"] = false; res["msg"] = "邀请码已过期";
+                                    send(res.dump());
+                                    do_read(); return;
+                                }
+                            }
+
+                            // 一次性：标记已用
+                            if (max_uses == 1) {
+                                sqlite3_stmt* upd;
+                                sqlite3_prepare_v2(server_.db_, "UPDATE invite_codes SET used=1 WHERE code=?;", -1, &upd, nullptr);
+                                sqlite3_bind_text(upd, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+                                sqlite3_step(upd);
+                                sqlite3_finalize(upd);
+                            }
+
+                            res["success"] = true; res["doc_id"] = doc_id; res["room_name"] = room_name;
+                            std::cout << "🔓 用户 " << username_ << " 使用邀请码 " << code << " 加入房间 " << doc_id << std::endl;
+                        } else {
+                            sqlite3_finalize(sel);
+                            res["success"] = false; res["msg"] = "邀请码无效或已被使用";
+                        }
+                        send(res.dump());
+                    }
+                }
+                else if (msg_type == "join") {
+                    std::string doc_id = data.value("doc_id", "public_room");
                     room_ = server_.get_or_create_room(doc_id);
-                    site_id_ = room_->generate_site_id();
+                    int req_site = data.value("requested_site_id", 0);
+                    if (req_site > 0) site_id_ = req_site; else site_id_ = room_->generate_site_id();
+
                     room_->join(this);
                     joined_ = true;
 
-                    // 发送初始化信息和历史记录
-                    json init_msg = {{"type", "init"}, {"site_id", site_id_}};
+                    // 查出房间名
+                    std::string room_name;
+                    sqlite3_stmt* nm;
+                    sqlite3_prepare_v2(server_.db_, "SELECT room_name FROM invite_codes WHERE doc_id=? LIMIT 1;", -1, &nm, nullptr);
+                    sqlite3_bind_text(nm, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                    if (sqlite3_step(nm) == SQLITE_ROW) room_name = reinterpret_cast<const char*>(sqlite3_column_text(nm, 0));
+                    sqlite3_finalize(nm);
+
+                    json init_msg = {{"type", "init"}, {"site_id", site_id_}, {"room_name", room_name}};
                     send(init_msg.dump());
                     room_->send_history(this);
 
-                    json presence_msg = {
-                        {"type", "presence"}, 
-                        {"action", "join"}, 
-                        {"site_id", site_id_}
-                    };
-                    // 不存数据库，直接广播
+                    json presence_msg = {{"type", "presence"}, {"action", "join"}, {"site_id", site_id_}};
                     room_->broadcast_except(this, presence_msg.dump());
                 }
             } else {
                 std::string msg_type = data.value("type", "");
-                
-                if (msg_type == "cursor" || msg_type == "presence") {
-                    //  瞬态事件
+                if (msg_type == "gen_invite") {
+                    // 验证当前用户是否为房间创建者
+                    sqlite3_stmt* chk;
+                    sqlite3_prepare_v2(server_.db_,
+                        "SELECT created_by FROM invite_codes WHERE doc_id=? LIMIT 1;",
+                        -1, &chk, nullptr);
+                    sqlite3_bind_text(chk, 1, room_->doc_id().c_str(), -1, SQLITE_TRANSIENT);
+                    bool is_owner = false;
+                    if (sqlite3_step(chk) == SQLITE_ROW) {
+                        std::string creator = reinterpret_cast<const char*>(sqlite3_column_text(chk, 0));
+                        is_owner = (creator == username_);
+                    }
+                    sqlite3_finalize(chk);
+
+                    if (!is_owner) {
+                        send(R"({"type":"gen_invite_res","success":false,"msg":"只有房间创建者才能生成邀请码"})");
+                    } else {
+                        std::string invite_type = data.value("invite_type", "once");
+                        int max_uses = 1;
+                        int64_t expires_at = 0;
+                        if (invite_type == "permanent") {
+                            max_uses = -1;
+                        } else if (invite_type == "timed") {
+                            max_uses = -1;
+                            int hours = data.value("expire_hours", 24);
+                            auto now = std::chrono::system_clock::now().time_since_epoch();
+                            expires_at = std::chrono::duration_cast<std::chrono::seconds>(now).count() + hours * 3600;
+                        }
+                        std::string code;
+                        while (true) {
+                            code = server_.generate_invite_code();
+                            sqlite3_stmt* chk2;
+                            sqlite3_prepare_v2(server_.db_, "SELECT id FROM invite_codes WHERE code=?;", -1, &chk2, nullptr);
+                            sqlite3_bind_text(chk2, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+                            bool exists = (sqlite3_step(chk2) == SQLITE_ROW);
+                            sqlite3_finalize(chk2);
+                            if (!exists) break;
+                        }
+                        std::string room_name = "未命名房间";
+                        sqlite3_stmt* nm;
+                        sqlite3_prepare_v2(server_.db_, "SELECT room_name FROM invite_codes WHERE doc_id=? LIMIT 1;", -1, &nm, nullptr);
+                        sqlite3_bind_text(nm, 1, room_->doc_id().c_str(), -1, SQLITE_TRANSIENT);
+                        if (sqlite3_step(nm) == SQLITE_ROW) room_name = reinterpret_cast<const char*>(sqlite3_column_text(nm, 0));
+                        sqlite3_finalize(nm);
+
+                        sqlite3_stmt* ins;
+                        sqlite3_prepare_v2(server_.db_,
+                            "INSERT INTO invite_codes (code, doc_id, room_name, created_by, max_uses, expires_at) VALUES (?,?,?,?,?,?);",
+                            -1, &ins, nullptr);
+                        sqlite3_bind_text(ins, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(ins, 2, room_->doc_id().c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(ins, 3, room_name.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(ins, 4, username_.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_int(ins, 5, max_uses);
+                        if (expires_at > 0) sqlite3_bind_int64(ins, 6, expires_at);
+                        else sqlite3_bind_null(ins, 6);
+                        sqlite3_step(ins);
+                        sqlite3_finalize(ins);
+
+                        json res = {{"type", "gen_invite_res"}, {"success", true},
+                                    {"code", code}, {"invite_type", invite_type}};
+                        if (expires_at > 0) res["expires_at"] = expires_at;
+                        send(res.dump());
+                        std::cout << "🔑 用户 " << username_ << " 在房间 " << room_->doc_id()
+                                  << " 生成新邀请码: " << code << " [" << invite_type << "]" << std::endl;
+                    }
+                } else if (msg_type == "rename_room") {
+                    std::string new_name = data.value("room_name", "");
+                    if (new_name.empty()) {
+                        send(R"({"type":"rename_room_res","success":false,"msg":"房间名不能为空"})");
+                    } else {
+                        // 验证当前用户是否为房间创建者
+                        sqlite3_stmt* chk;
+                        sqlite3_prepare_v2(server_.db_,
+                            "SELECT created_by FROM invite_codes WHERE doc_id=? LIMIT 1;",
+                            -1, &chk, nullptr);
+                        sqlite3_bind_text(chk, 1, room_->doc_id().c_str(), -1, SQLITE_TRANSIENT);
+                        bool is_owner = false;
+                        if (sqlite3_step(chk) == SQLITE_ROW) {
+                            std::string creator = reinterpret_cast<const char*>(sqlite3_column_text(chk, 0));
+                            is_owner = (creator == username_);
+                        }
+                        sqlite3_finalize(chk);
+
+                        if (!is_owner) {
+                            send(R"({"type":"rename_room_res","success":false,"msg":"只有房间创建者才能修改房间名"})");
+                        } else {
+                            sqlite3_stmt* upd;
+                            sqlite3_prepare_v2(server_.db_,
+                                "UPDATE invite_codes SET room_name=? WHERE doc_id=?;",
+                                -1, &upd, nullptr);
+                            sqlite3_bind_text(upd, 1, new_name.c_str(), -1, SQLITE_TRANSIENT);
+                            sqlite3_bind_text(upd, 2, room_->doc_id().c_str(), -1, SQLITE_TRANSIENT);
+                            sqlite3_step(upd);
+                            sqlite3_finalize(upd);
+                            json res = {{"type", "rename_room_res"}, {"success", true}, {"room_name", new_name}};
+                            send(res.dump());
+                            std::cout << "✏️ 用户 " << username_ << " 将房间 " << room_->doc_id()
+                                      << " 重命名为: " << new_name << std::endl;
+                        }
+                    }
+                } else if (msg_type == "cursor" || msg_type == "presence") {
                     room_->broadcast_except(this, payload);
                 } else {
-                    
-                    room_->save_event(payload);
-                    room_->broadcast_except(this, payload);
+                    room_->save_event(payload); room_->broadcast_except(this, payload);
                 }
             }
-        } catch (const std::exception& e) {
-            std::cerr << "JSON 解析错误: " << e.what() << std::endl;
-        }
-
-        do_read(); 
+        } catch (...) {}
+        do_read();
     }
 
     void send(const std::string& message) {
@@ -231,55 +502,53 @@ private:
         write_queue_.push(std::move(message));
         if (!is_writing_) do_write();
     }
-
     void do_write() {
         is_writing_ = true;
         ws_.text(true);
-        ws_.async_write(net::buffer(write_queue_.front()),
-            beast::bind_front_handler(&Session::on_write, shared_from_this()));
+        ws_.async_write(net::buffer(write_queue_.front()), beast::bind_front_handler(&Session::on_write, shared_from_this()));
     }
-
     void on_write(beast::error_code ec, std::size_t) {
         if (ec) return;
         write_queue_.pop();
-        if (!write_queue_.empty()) do_write();
-        else is_writing_ = false;
+        if (!write_queue_.empty()) do_write(); else is_writing_ = false;
     }
 };
 
-
-void Room::join(Session* session) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    sessions_.insert(session);
+void Server::register_user(const std::string& username, Session* session) {
+    std::lock_guard<std::mutex> lock(user_mutex_);
+    auto it = active_users_.find(username);
+    if (it != active_users_.end() && it->second != session) {
+        it->second->send(R"({"type": "kicked", "msg": "您的账号已在其他设备登录，您被迫下线！"})");
+        std::cout << "⚠️ 用户 " << username << " 的旧设备被踢下线。" << std::endl;
+    }
+    active_users_[username] = session; // 记录新设备
 }
 
-void Room::leave(Session* session) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    sessions_.erase(session);
-}
-
-void Room::broadcast_except(Session* sender, const std::string& message) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (auto* session : sessions_) {
-        if (session != sender) session->send(message);
+void Server::unregister_user(const std::string& username, Session* session) {
+    std::lock_guard<std::mutex> lock(user_mutex_);
+    auto it = active_users_.find(username);
+    if (it != active_users_.end() && it->second == session) {
+        active_users_.erase(it); // 用户断开连接，划掉名字
     }
 }
 
+// Room 相关方法
+void Room::join(Session* session) { std::lock_guard<std::mutex> lock(mutex_); sessions_.insert(session); }
+void Room::leave(Session* session) { std::lock_guard<std::mutex> lock(mutex_); sessions_.erase(session); }
+void Room::broadcast_except(Session* sender, const std::string& message) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto* session : sessions_) if (session != sender) session->send(message);
+}
 void Room::send_history(Session* session) {
     std::lock_guard<std::mutex> lock(mutex_);
     std::string sql = "SELECT payload FROM events WHERE doc_id = ? ORDER BY id ASC;";
     sqlite3_stmt* stmt;
-    int count = 0;
-    
     if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr) == SQLITE_OK) {
         sqlite3_bind_text(stmt, 1, doc_id_.c_str(), -1, SQLITE_TRANSIENT);
         while (sqlite3_step(stmt) == SQLITE_ROW) {
-            std::string payload = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-            session->send(payload);
-            count++;
+            session->send(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)));
         }
         sqlite3_finalize(stmt);
-        std::cout << "⏪ [历史重播] 向新连入的用户发送了 " << count << " 条历史记录 (文档: " << doc_id_ << ")" << std::endl;
     }
 }
 
@@ -295,8 +564,7 @@ int main() {
     try {
         net::io_context ioc{1};
         Server global_server;
-
-        tcp::endpoint endpoint{net::ip::make_address("127.0.0.1"), 9002};
+        tcp::endpoint endpoint{net::ip::make_address("0.0.0.0"), 9002};
         auto acceptor = std::make_shared<tcp::acceptor>(ioc);
         beast::error_code ec;
         
@@ -304,10 +572,9 @@ int main() {
         acceptor->set_option(net::socket_base::reuse_address(true), ec);
         acceptor->bind(endpoint, ec);
         acceptor->listen(net::socket_base::max_listen_connections, ec);
-
         do_accept(ioc, acceptor, global_server);
 
-        std::cout << "🚀 多文档房间服务器 (V2 数据库 + 雷达版) 已启动: ws://127.0.0.1:9002" << std::endl;
+        std::cout << "🚀 服务器已启动 (支持单点互斥登录): ws://0.0.0.0:9002" << std::endl;
         ioc.run();
     } catch (...) {}
 }

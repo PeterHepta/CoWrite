@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>协同富文本编辑器</title>
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <link href="https://unpkg.com/quill-emoji/dist/quill-emoji.css" rel="stylesheet">
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f5f5f7; margin: 0; }
+        .main-container { display: flex; flex-direction: column; height: 92vh; max-width: 1000px; margin: 0 auto; gap: 10px; }
+        .panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.1); }
+        .status-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; margin-bottom: 0;}
+        #editor-container { flex: 1; border-radius: 0 0 8px 8px; font-size: 16px; border: 1px solid #ccc; background: white; }
+        .ql-toolbar.ql-snow { border-radius: 8px 8px 0 0; border: 1px solid #ccc; background: #fafafa; border-bottom:none;}
+        #log { background: #2d2d2d; color: #a9dc76; padding: 10px; height: 80px; overflow-y: auto; font-family: monospace; border-radius: 4px; font-size: 11px; margin-top: 5px; }
+        .log-own { color: #fc9867; }
+        
+        #auth-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+            display: flex; justify-content: center; align-items: center; z-index: 9999;
+        }
+        .auth-card {
+            background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            width: 300px; display: flex; flex-direction: column; gap: 15px; text-align: center;
+        }
+        .auth-card h3 { margin: 0 0 10px 0; color: #333; }
+        .auth-card input { padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; outline: none; }
+        .auth-card input:focus { border-color: #007aff; }
+        .auth-card button { padding: 12px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .auth-card button:hover { opacity: 0.9; transform: translateY(-1px); }
+        #btn-login { background: #007aff; color: white; }
+        #btn-register { background: #f2f2f7; color: #007aff; }
+        
+        #btn-logout {
+            background: #ff3b30; color: white; border: none; border-radius: 4px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; margin-left: 15px; display: none;
+        }
+        #btn-logout:hover { opacity: 0.8; }
+
+        #room-choice-overlay, #room-created-overlay, #join-room-overlay, #invite-type-overlay, #room-name-overlay, #gen-invite-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+            display: none; justify-content: center; align-items: center; z-index: 9999;
+        }
+        #invite-code-display {
+            font-size: 28px; letter-spacing: 6px; color: #007aff;
+            font-family: monospace; font-weight: bold;
+            background: #f0f6ff; padding: 12px 20px; border-radius: 8px; margin: 5px 0;
+        }
+        #input-invite-code {
+            padding: 12px; border: 1px solid #ccc; border-radius: 6px;
+            font-size: 20px; font-family: monospace; letter-spacing: 4px;
+            text-align: center; text-transform: uppercase; outline: none;
+        }
+        #input-invite-code:focus { border-color: #007aff; }
+        #btn-create-room { background: #34c759; color: white; }
+        #btn-join-room { background: #007aff; color: white; }
+        #btn-enter-room { background: #34c759; color: white; }
+        #btn-copy-code { background: #007aff; color: white; }
+        #btn-join-with-code { background: #007aff; color: white; }
+        #btn-back-choice, #btn-go-back-login, #btn-new-room { background: #f2f2f7; color: #333; }
+        #btn-invite-once, #btn-invite-permanent { background: #f2f2f7; color: #333; }
+        #btn-invite-once:hover, #btn-invite-permanent:hover { background: #e5e5ea; }
+        #btn-gen-invite { background: #ff9f0a; color: white; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; margin-left: 10px; display: none; }
+        #btn-gen-invite:hover { opacity: 0.85; }
+        #ql-custom-placeholder {
+            position: absolute; top: 0; left: 0;
+            padding: 12px 15px;
+            color: #aaa; font-size: 16px;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="auth-overlay">
+    <div class="auth-card">
+        <h3>👋 欢迎来到协同文档</h3>
+        <input type="text" id="input-username" placeholder="请输入用户名" autocomplete="off">
+        <input type="password" id="input-password" placeholder="请输入密码">
+        <button id="btn-login">登 录</button>
+        <button id="btn-register">注 册 新 账 号</button>
+    </div>
+</div>
+
+<div id="room-choice-overlay">
+    <div class="auth-card">
+        <h3>📌 选择加入方式</h3>
+        <button id="btn-create-room">✨ 创建新房间</button>
+        <button id="btn-join-room">🔓 加入现有房间</button>
+        <button id="btn-go-back-login">← 返回登录</button>
+    </div>
+</div>
+
+<div id="room-name-overlay">
+    <div class="auth-card">
+        <h3>✨ 创建新房间</h3>
+        <input type="text" id="input-room-name" placeholder="输入房间名称（可重复）" maxlength="30" autocomplete="off">
+        <button id="btn-confirm-room-name" style="background:#34c759; color:white;">下一步：设置邀请码 →</button>
+        <button id="btn-back-from-name">← 返回</button>
+    </div>
+</div>
+
+<div id="invite-type-overlay">
+    <div class="auth-card">
+        <h3>🔑 设置邀请码类型</h3>
+        <button id="btn-invite-once">🔂 一次性使用</button>
+        <button id="btn-invite-timed">⏱️ 限时有效</button>
+        <div id="timed-options" style="display:none; width:100%;">
+            <select id="select-hours" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; outline:none;">
+                <option value="1">1 小时</option>
+                <option value="6">6 小时</option>
+                <option value="24" selected>24 小时</option>
+                <option value="72">3 天</option>
+                <option value="168">7 天</option>
+            </select>
+            <button id="btn-confirm-timed" style="background:#ff9500; color:white; margin-top:0;">确认创建</button>
+        </div>
+        <button id="btn-invite-permanent">♾️ 永久有效</button>
+        <button id="btn-back-room-choice">← 返回</button>
+    </div>
+</div>
+
+<div id="room-created-overlay">
+    <div class="auth-card">
+        <h3>🎉 房间创建成功</h3>
+        <p id="invite-type-hint" style="color:#666; font-size:13px; margin:0;"></p>
+        <div id="invite-code-display">------</div>
+        <button id="btn-copy-code">📋 复制邀请码</button>
+        <button id="btn-enter-room">进入房间 →</button>
+        <button id="btn-new-room">创建另一个房间</button>
+    </div>
+</div>
+
+<div id="join-room-overlay">
+    <div class="auth-card">
+        <h3>🔓 加入房间</h3>
+        <p style="color:#666; font-size:13px; margin:0;">请输入 6 位邀请码</p>
+        <input type="text" id="input-invite-code" placeholder="XXXXXX" maxlength="6">
+        <button id="btn-join-with-code">加入房间</button>
+        <button id="btn-back-choice">← 返回</button>
+    </div>
+</div>
+
+<div id="gen-invite-overlay">
+    <div class="auth-card">
+        <h3>🔑 邀请码已生成</h3>
+        <p id="gen-invite-type-hint" style="color:#666; font-size:13px; margin:0;"></p>
+        <div id="gen-invite-code-display" style="font-size:28px; letter-spacing:6px; color:#007aff; font-family:monospace; font-weight:bold; background:#f0f6ff; padding:12px 20px; border-radius:8px; margin:5px 0;">------</div>
+        <button id="btn-copy-gen-code">📋 复制邀请码</button>
+        <button id="btn-close-gen-invite" style="background:#f2f2f7; color:#333;">关闭</button>
+    </div>
+</div>
+
+<div class="main-container">
+    <div class="panel status-header">
+        <h2 style="margin:0; color: #333;">协同标题文档 ✨</h2>
+        <div style="font-size: 14px; display: flex; align-items: center;">
+            <span id="doc-display" style="color:#007aff; margin-right: 5px; font-weight:bold;"></span>
+            <button id="btn-rename-room" title="修改房间名" style="display:none; background:none; border:none; cursor:pointer; color:#007aff; font-size:13px; padding:2px 6px; margin-right:10px;">✏️</button>
+            状态: <span id="status" style="color: orange; font-weight: bold; margin-right: 15px;">等待登录 🟡</span>
+            <span id="site-display" style="color: #666;">身份未确认</span>
+            <button id="btn-gen-invite">🔑 邀请</button>
+            <button id="btn-leave-room" style="display:none; background:#ff9f0a; color:white; border:none; border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer; margin-left:10px;">退出房间</button>
+            <button id="btn-logout">退出登录</button>
+        </div>
+    </div>
+    <div id="editor-container"></div>
+    <div id="log"></div>
+</div>
+
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill-cursors@3.1.0/dist/quill-cursors.min.js"></script>
+<script src="https://unpkg.com/quill-emoji/dist/quill-emoji.js"></script>
+
+<script>
+    const statusSpan = document.getElementById('status');
+    const siteDisplay = document.getElementById('site-display');
+    const docDisplay = document.getElementById('doc-display');
+    const logPanel = document.getElementById('log');
+    const authOverlay = document.getElementById('auth-overlay');
+    const btnLogout = document.getElementById('btn-logout');
+    const roomChoiceOverlay = document.getElementById('room-choice-overlay');
+    const roomCreatedOverlay = document.getElementById('room-created-overlay');
+    const joinRoomOverlay = document.getElementById('join-room-overlay');
+    const inviteCodeDisplay = document.getElementById('invite-code-display');
+    const inputInviteCode = document.getElementById('input-invite-code');
+
+    let currentRoom = JSON.parse(localStorage.getItem('currentRoom') || 'null');
+
+    Quill.register('modules/cursors', QuillCursors);
+
+    var quill = new Quill('#editor-container', {
+        modules: { 
+            toolbar: { container: [ [{ header: [1, 2, false] }], ['bold', 'italic'], [{ color: [] }], ['emoji'] ], handlers: { 'emoji': function() {} } },
+            "emoji-toolbar": true, "emoji-shortname": true,
+            cursors: { transformOnTextChange: true, hideDelayMs: 5000, hideSpeedMs: 300 }
+        },
+        placeholder: '', theme: 'snow'
+    });
+
+    const cursorsModule = quill.getModule('cursors');
+
+    // 手动管理 placeholder，避免 Quill 在有 active format 时 placeholder 不消失的 bug
+    const editorEl = document.querySelector('#editor-container .ql-editor');
+    const placeholderEl = document.createElement('div');
+    placeholderEl.id = 'ql-custom-placeholder';
+    placeholderEl.innerText = '在这里开始协同创作...';
+    editorEl.parentElement.style.position = 'relative';
+    editorEl.parentElement.appendChild(placeholderEl);
+
+    function updatePlaceholder() {
+        const len = quill.getLength();
+        // getLength() 空文档为 1（只有末尾 \n），embed 也计入长度
+        const isEmpty = len <= 1;
+        placeholderEl.style.display = isEmpty ? 'block' : 'none';
+    }
+    function updatePlaceholderDeferred() { setTimeout(updatePlaceholder, 0); }
+    quill.on('text-change', updatePlaceholderDeferred);
+    editorEl.addEventListener('compositionstart', () => { placeholderEl.style.display = 'none'; });
+    editorEl.addEventListener('compositionend', updatePlaceholder);
+    editorEl.addEventListener('input', updatePlaceholder);
+    // MutationObserver 兜底：捕获 quill-emoji 直接操作 DOM 的情况
+    new MutationObserver(updatePlaceholderDeferred).observe(editorEl, { childList: true, subtree: true, characterData: true });
+    updatePlaceholder();
+    
+    let mySiteId = localStorage.getItem('mySiteId') ? parseInt(localStorage.getItem('mySiteId')) : null; 
+    let myUsername = localStorage.getItem('myUsername') || null; 
+    let myPassword = localStorage.getItem('myPassword') || null;
+
+    let docState = [{ id: "p@0", char: "\n", attributes: {} }]; 
+    let isApplyingRemoteChange = false; 
+
+    const colorPalette = ['#f56223', '#ffc107', '#00a8ff', '#00b894', '#9b59b6', '#e84393'];
+    function getUserColor(siteId) { return colorPalette[siteId % colorPalette.length]; }
+
+    function addLog(text, isOwn = false) {
+        const div = document.createElement('div'); div.innerText = text; if(isOwn) div.classList.add('log-own');
+        logPanel.appendChild(div); logPanel.scrollTop = logPanel.scrollHeight;
+    }
+
+    function generatePosBetween(left, right) {
+        let pos = ""; let i = 0;
+        while (true) {
+            let l = i < left.length ? left.charCodeAt(i) : 96; let r = i < right.length ? right.charCodeAt(i) : 123;
+            if (r - l > 1) { pos += String.fromCharCode(Math.floor((l + r) / 2)); return pos; } else { pos += String.fromCharCode(l); }
+            i++;
+        }
+    }
+
+    const ws = new WebSocket("ws://39.102.113.202:9002"); 
+    
+    ws.onopen = () => {
+        if (myUsername && myPassword) {
+            authOverlay.style.display = 'none';
+            statusSpan.innerText = "自动登录中 🟡";
+            addLog("🔗 检测到历史登录状态，正在免密验证...");
+            ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
+        } else {
+            statusSpan.innerText = "已连网，请登录 🟡";
+            addLog("🔗 已连接到服务器，等待身份验证...");
+        }
+    };
+
+    document.getElementById('btn-register').onclick = () => {
+        myUsername = document.getElementById('input-username').value;
+        myPassword = document.getElementById('input-password').value;
+        if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
+        ws.send(JSON.stringify({ type: "register", username: myUsername, password: myPassword }));
+    };
+
+    document.getElementById('btn-login').onclick = () => {
+        myUsername = document.getElementById('input-username').value;
+        myPassword = document.getElementById('input-password').value;
+        if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
+        ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
+    };
+
+    btnLogout.onclick = () => {
+        if(confirm("确定要退出登录吗？")) {
+            localStorage.clear();
+            location.reload();
+        }
+    };
+
+    document.getElementById('btn-leave-room').onclick = () => {
+        // 清除房间记忆，回到房间选择界面，刷新页面重置编辑器状态
+        localStorage.removeItem('currentRoom');
+        localStorage.removeItem('mySiteId');
+        location.reload();
+    };
+
+    const roomNameOverlay = document.getElementById('room-name-overlay');
+    const inviteTypeOverlay = document.getElementById('invite-type-overlay');
+    const inviteTypeHint = document.getElementById('invite-type-hint');
+    const genInviteOverlay = document.getElementById('gen-invite-overlay');
+    const genInviteCodeDisplay = document.getElementById('gen-invite-code-display');
+    const genInviteTypeHint = document.getElementById('gen-invite-type-hint');
+    const btnGenInvite = document.getElementById('btn-gen-invite');
+    const btnRenameRoom = document.getElementById('btn-rename-room');
+
+    btnRenameRoom.onclick = () => {
+        const current = currentRoom ? (currentRoom.room_name || '') : '';
+        const newName = prompt('请输入新的房间名称：', current);
+        if (newName === null) return; // 取消
+        if (!newName.trim()) return alert('房间名称不能为空！');
+        ws.send(JSON.stringify({ type: "rename_room", room_name: newName.trim() }));
+    };
+
+    let isGenInviteMode = false; // true=进房后生成邀请码, false=创建房间
+
+    document.getElementById('btn-create-room').onclick = () => {
+        roomChoiceOverlay.style.display = 'none';
+        roomNameOverlay.style.display = 'flex';
+        document.getElementById('input-room-name').value = '';
+    };
+
+    document.getElementById('btn-confirm-room-name').onclick = () => {
+        const name = document.getElementById('input-room-name').value.trim();
+        if (!name) return alert('请输入房间名称！');
+        roomNameOverlay.dataset.roomName = name;
+        roomNameOverlay.style.display = 'none';
+        isGenInviteMode = false;
+        inviteTypeOverlay.style.display = 'flex';
+        document.getElementById('timed-options').style.display = 'none';
+    };
+
+    document.getElementById('btn-back-from-name').onclick = () => {
+        roomNameOverlay.style.display = 'none';
+        roomChoiceOverlay.style.display = 'flex';
+    };
+
+    // 进房后随时生成邀请码
+    btnGenInvite.onclick = () => {
+        isGenInviteMode = true;
+        inviteTypeOverlay.style.display = 'flex';
+        document.getElementById('timed-options').style.display = 'none';
+    };
+
+    function sendCreateOrGenInvite(invite_type, extra) {
+        if (isGenInviteMode) {
+            ws.send(JSON.stringify({ type: "gen_invite", invite_type, ...extra }));
+        } else {
+            const room_name = roomNameOverlay.dataset.roomName || '未命名房间';
+            ws.send(JSON.stringify({ type: "create_room", room_name, invite_type, ...extra }));
+        }
+    }
+
+    document.getElementById('btn-invite-once').onclick = () => {
+        inviteTypeOverlay.style.display = 'none';
+        sendCreateOrGenInvite("once", {});
+    };
+
+    document.getElementById('btn-invite-timed').onclick = () => {
+        const timedOpts = document.getElementById('timed-options');
+        timedOpts.style.display = timedOpts.style.display === 'none' ? 'flex' : 'none';
+        timedOpts.style.flexDirection = 'column';
+        timedOpts.style.gap = '10px';
+    };
+
+    document.getElementById('btn-confirm-timed').onclick = () => {
+        const hours = parseInt(document.getElementById('select-hours').value);
+        inviteTypeOverlay.style.display = 'none';
+        sendCreateOrGenInvite("timed", { expire_hours: hours });
+    };
+
+    document.getElementById('btn-invite-permanent').onclick = () => {
+        inviteTypeOverlay.style.display = 'none';
+        sendCreateOrGenInvite("permanent", {});
+    };
+
+    document.getElementById('btn-back-room-choice').onclick = () => {
+        inviteTypeOverlay.style.display = 'none';
+        if (isGenInviteMode) return; // 进房后取消直接关闭
+        roomNameOverlay.style.display = 'flex';
+    };
+
+    document.getElementById('btn-go-back-login').onclick = () => {
+        roomChoiceOverlay.style.display = 'none';
+        authOverlay.style.display = 'flex';
+    };
+
+    document.getElementById('btn-copy-code').onclick = () => {
+        navigator.clipboard.writeText(inviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
+    };
+
+    document.getElementById('btn-enter-room').onclick = () => {
+        roomCreatedOverlay.style.display = 'none';
+        statusSpan.innerText = "进入房间中 🟡";
+        docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
+        ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
+    };
+
+    document.getElementById('btn-copy-gen-code').onclick = () => {
+        navigator.clipboard.writeText(genInviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
+    };
+
+    document.getElementById('btn-close-gen-invite').onclick = () => {
+        genInviteOverlay.style.display = 'none';
+    };
+
+    document.getElementById('btn-new-room').onclick = () => {
+        roomCreatedOverlay.style.display = 'none';
+        inviteTypeOverlay.style.display = 'flex';
+        document.getElementById('timed-options').style.display = 'none';
+    };
+
+    document.getElementById('btn-join-room').onclick = () => {
+        roomChoiceOverlay.style.display = 'none';
+        joinRoomOverlay.style.display = 'flex';
+        inputInviteCode.focus();
+    };
+
+    document.getElementById('btn-back-choice').onclick = () => {
+        joinRoomOverlay.style.display = 'none';
+        roomChoiceOverlay.style.display = 'flex';
+        inputInviteCode.value = '';
+    };
+
+    document.getElementById('btn-join-with-code').onclick = () => {
+        const code = inputInviteCode.value.trim().toUpperCase();
+        if (code.length !== 6) return alert('请输入 6 位邀请码！');
+        ws.send(JSON.stringify({ type: "join_with_code", code: code }));
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        if (data.type === "kicked") {
+            alert(data.msg);
+            localStorage.clear();
+            location.reload();
+            return;
+        }
+
+        if (data.type === "register_res") {
+            alert(data.msg); 
+        } 
+        else if (data.type === "login_res") {
+            if (data.success) {
+                authOverlay.style.display = 'none';
+                btnLogout.style.display = 'inline-block';
+
+                localStorage.setItem('myUsername', myUsername);
+                localStorage.setItem('myPassword', myPassword);
+
+                siteDisplay.innerText = `👤 ${myUsername}`;
+                addLog(`✅ 登录成功！欢迎回来，${myUsername}！`, true);
+
+                if (currentRoom) {
+                    // 自动重新加入上次的房间
+                    statusSpan.innerText = "重新加入房间中 🟡";
+                    addLog(`🔄 正在自动返回房间「${currentRoom.room_name || currentRoom.doc_id}」...`);
+                    ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
+                } else {
+                    statusSpan.innerText = "已登录，选择房间 🟡";
+                    roomChoiceOverlay.style.display = 'flex';
+                }
+            } else {
+                alert(data.msg);
+                authOverlay.style.display = 'flex';
+                localStorage.clear();
+            }
+        }
+        else if (data.type === "create_room_res") {
+            if (data.success) {
+                currentRoom = { doc_id: data.doc_id, code: data.code, room_name: data.room_name };
+                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+                roomChoiceOverlay.style.display = 'none';
+                inviteTypeOverlay.style.display = 'none';
+                inviteCodeDisplay.innerText = data.code;
+
+                const hints = {
+                    once: '仅限一次使用，用完即失效',
+                    timed: data.expires_at ? `有效至 ${new Date(data.expires_at * 1000).toLocaleString()}` : '限时有效',
+                    permanent: '永久有效，可无限次使用'
+                };
+                inviteTypeHint.innerText = hints[data.invite_type] || '';
+
+                roomCreatedOverlay.style.display = 'flex';
+                addLog(`🎉 房间「${data.room_name}」已创建，邀请码: ${data.code}`, true);
+            } else {
+                alert(data.msg);
+            }
+        }
+        else if (data.type === "gen_invite_res") {
+            if (data.success) {
+                genInviteCodeDisplay.innerText = data.code;
+                const hints = {
+                    once: '仅限一次使用，用完即失效',
+                    timed: data.expires_at ? `有效至 ${new Date(data.expires_at * 1000).toLocaleString()}` : '限时有效',
+                    permanent: '永久有效，可无限次使用'
+                };
+                genInviteTypeHint.innerText = hints[data.invite_type] || '';
+                genInviteOverlay.style.display = 'flex';
+                addLog(`🔑 新邀请码已生成: ${data.code}`, true);
+            } else {
+                alert(data.msg || '生成邀请码失败');
+            }
+        }
+        else if (data.type === "join_with_code_res") {
+            if (data.success) {
+                currentRoom = { doc_id: data.doc_id, room_name: data.room_name };
+                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+                joinRoomOverlay.style.display = 'none';
+                statusSpan.innerText = "进入房间中 🟡";
+                docDisplay.innerText = `📄 ${data.room_name || data.doc_id}`;
+                ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
+            } else {
+                alert(data.msg);
+                inputInviteCode.value = '';
+            }
+        }
+        else if (data.type === "rename_room_res") {
+            if (data.success) {
+                currentRoom.room_name = data.room_name;
+                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+                docDisplay.innerText = `📄 ${data.room_name}`;
+                addLog(`✏️ 房间已重命名为「${data.room_name}」`, true);
+            } else {
+                alert(data.msg);
+            }
+        }
+        else if (data.type === "init") {
+            mySiteId = data.site_id;
+            localStorage.setItem('mySiteId', mySiteId);
+            // 用服务端返回的 room_name 更新并持久化 currentRoom
+            if (data.room_name && currentRoom) {
+                currentRoom.room_name = data.room_name;
+                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+            }
+            statusSpan.innerText = "已进入房间 🟢"; statusSpan.style.color = "green";
+            if (currentRoom) docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
+            siteDisplay.innerText = `👤 ${myUsername} (Site: ${mySiteId})`;
+            btnGenInvite.style.display = 'inline-block';
+            btnRenameRoom.style.display = 'inline-block';
+            document.getElementById('btn-leave-room').style.display = 'inline-block';
+        } else if (data.type === "presence") {
+            addLog(`⚡️ [房间广播] ${data.site_id} 进入了文档`);
+        } else if (data.type === "cursor") {
+            if (data.site_id === mySiteId) return; 
+            let relativeIndex = 0;
+            if (data.anchorId !== "start") {
+                const foundIndex = docState.findIndex(item => item.id === data.anchorId);
+                if (foundIndex !== -1) relativeIndex = foundIndex + 1;
+            }
+            const remoteName = data.username ? data.username : `神秘人 ${data.site_id}`;
+            cursorsModule.createCursor(data.site_id.toString(), remoteName, getUserColor(data.site_id));
+            cursorsModule.moveCursor(data.site_id.toString(), { index: relativeIndex, length: data.length });
+        } else if (data.type === "insert") {
+            isApplyingRemoteChange = true; 
+            docState.push({ id: data.id, char: data.char, attributes: data.attributes || {} });
+            docState.sort((a, b) => a.id.localeCompare(b.id)); 
+            const relativeIndex = docState.findIndex(item => item.id === data.id);
+            if (typeof data.char === 'string') {
+                if (data.char.length > 0) quill.insertText(relativeIndex, data.char, data.attributes || {}, 'silent'); 
+            } else {
+                const embedType = Object.keys(data.char)[0]; const embedValue = data.char[embedType];     
+                quill.insertEmbed(relativeIndex, embedType, embedValue, 'silent');
+            }
+            isApplyingRemoteChange = false; 
+        } else if (data.type === "delete") {
+            isApplyingRemoteChange = true;
+            const targetIndex = docState.findIndex(item => item.id === data.id);
+            if (targetIndex !== -1) {
+                const deletedItem = docState.splice(targetIndex, 1)[0];
+                const delLen = typeof deletedItem.char === 'string' ? deletedItem.char.length : 1;
+                if (delLen > 0) quill.deleteText(targetIndex, delLen, 'silent');
+            }
+            isApplyingRemoteChange = false;
+        } else if (data.type === "format") {
+            isApplyingRemoteChange = true;
+            const targetIndex = docState.findIndex(item => item.id === data.id);
+            if (targetIndex !== -1) {
+                const formatItem = docState[targetIndex];
+                if (data.value === null || data.value === false) delete formatItem.attributes[data.key];
+                else formatItem.attributes[data.key] = data.value;
+                const formatLen = typeof formatItem.char === 'string' ? formatItem.char.length : 1;
+                if (formatLen > 0) quill.formatText(targetIndex, formatLen, data.key, data.value, 'silent');
+            }
+            isApplyingRemoteChange = false;
+        }
+    };
+
+    quill.on('selection-change', (range, oldRange, source) => {
+        if (range && mySiteId) {
+            let anchorId = "start";
+            if (range.index > 0 && range.index <= docState.length) anchorId = docState[range.index - 1].id;
+            ws.send(JSON.stringify({ type: "cursor", site_id: mySiteId, username: myUsername, anchorId: anchorId, length: range.length }));
+        }
+    });
+
+    quill.on('text-change', (delta, oldDelta, source) => {
+        if (source === 'silent' || !mySiteId || isApplyingRemoteChange) return;
+        let currentIndex = 0; 
+        delta.ops.forEach(op => {
+            if (op.retain) {
+                if (op.attributes) {
+                    const attrKeys = Object.keys(op.attributes);
+                    for (let i = 0; i < op.retain; i++) {
+                        const targetRelIndex = currentIndex + i; if (targetRelIndex >= docState.length) break;
+                        const charItem = docState[targetRelIndex];
+                        attrKeys.forEach(key => {
+                            const val = op.attributes[key];
+                            if (val === null || val === false) delete charItem.attributes[key]; else charItem.attributes[key] = val;
+                            ws.send(JSON.stringify({ type: "format", id: charItem.id, key: key, value: val }));
+                        });
+                    }
+                }
+                currentIndex += op.retain;
+            } else if (op.insert) {
+                let itemsToInsert = [];
+                if (typeof op.insert === 'string') {
+                    const segmenter = new Intl.Segmenter('zh-CN', { granularity: 'grapheme' });
+                    const chars = Array.from(segmenter.segment(op.insert)).map(s => s.segment);
+                    chars.forEach(c => { itemsToInsert.push(c); for(let i = 1; i < c.length; i++) itemsToInsert.push(""); });
+                } else { itemsToInsert = [op.insert]; }
+
+                for (let i = 0; i < itemsToInsert.length; i++) {
+                    const item = itemsToInsert[i];
+                    const leftId = currentIndex > 0 ? docState[currentIndex - 1].id.split('@')[0] : "";
+                    const rightId = currentIndex < docState.length ? docState[currentIndex].id.split('@')[0] : "";
+                    const absoluteId = `${generatePosBetween(leftId, rightId)}@${mySiteId}`;
+                    const attrs = op.attributes || {};
+                    docState.splice(currentIndex, 0, { id: absoluteId, char: item, attributes: attrs }); 
+                    ws.send(JSON.stringify({ type: "insert", id: absoluteId, char: item, attributes: attrs }));
+                    currentIndex++; 
+                }
+            } else if (op.delete) {
+                for (let i = 0; i < op.delete; i++) {
+                    if (currentIndex < docState.length) {
+                        const delId = docState[currentIndex].id; docState.splice(currentIndex, 1);
+                        ws.send(JSON.stringify({ type: "delete", id: delId }));
+                    }
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>
