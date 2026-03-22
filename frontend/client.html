@@ -203,7 +203,7 @@
 
     const cursorsModule = quill.getModule('cursors');
 
-    // 手动管理 placeholder，避免 Quill 在有 active format 时 placeholder 不消失的 bug
+    // 手动管理 placeholder
     const editorEl = document.querySelector('#editor-container .ql-editor');
     const placeholderEl = document.createElement('div');
     placeholderEl.id = 'ql-custom-placeholder';
@@ -213,7 +213,6 @@
 
     function updatePlaceholder() {
         const len = quill.getLength();
-        // getLength() 空文档为 1（只有末尾 \n），embed 也计入长度
         const isEmpty = len <= 1;
         placeholderEl.style.display = isEmpty ? 'block' : 'none';
     }
@@ -222,7 +221,7 @@
     editorEl.addEventListener('compositionstart', () => { placeholderEl.style.display = 'none'; });
     editorEl.addEventListener('compositionend', updatePlaceholder);
     editorEl.addEventListener('input', updatePlaceholder);
-    // MutationObserver 兜底：捕获 quill-emoji 直接操作 DOM 的情况
+    // 捕获 quill-emoji 直接操作 DOM 的情况
     new MutationObserver(updatePlaceholderDeferred).observe(editorEl, { childList: true, subtree: true, characterData: true });
     updatePlaceholder();
     
@@ -538,7 +537,7 @@
             btnRenameRoom.style.display = 'inline-block';
             document.getElementById('btn-leave-room').style.display = 'inline-block';
         } else if (data.type === "presence") {
-            addLog(`⚡️ [房间广播] ${data.site_id} 进入了文档`);
+            addLog(`⚡️ [房间广播] ${data.username || data.site_id} 进入了文档`);
         } else if (data.type === "cursor") {
             if (data.site_id === mySiteId) return; 
             let relativeIndex = 0;

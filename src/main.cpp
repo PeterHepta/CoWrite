@@ -4,9 +4,12 @@
 #include <boost/asio/strand.hpp>
 #include <nlohmann/json.hpp>
 #include <sqlite3.h>
+#include <openssl/sha.h>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <sstream>
+#include <iomanip>
 #include <unordered_set>
 #include <unordered_map>
 #include <mutex>
@@ -15,6 +18,15 @@
 #include <condition_variable>
 #include <random>
 #include <chrono>
+
+static std::string sha256(const std::string& input) {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    SHA256(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash);
+    std::ostringstream oss;
+    for (int i = 0; i < SHA256_DIGEST_LENGTH; ++i)
+        oss << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(hash[i]);
+    return oss.str();
+}
 
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -220,35 +232,43 @@ public:
                 if (msg_type == "register") {
                     std::string u = data.value("username", "");
                     std::string p = data.value("password", "");
-                    std::string sql = "INSERT INTO users (username, password) VALUES ('" + u + "', '" + p + "');";
-                    char* errMsg = nullptr;
+                    std::string hashed_p = sha256(p);
                     json res = {{"type", "register_res"}};
-                    if (sqlite3_exec(server_.db_, sql.c_str(), nullptr, nullptr, &errMsg) != SQLITE_OK) {
-                        res["success"] = false; res["msg"] = "Registration failed!"; sqlite3_free(errMsg);
+                    sqlite3_stmt* stmt;
+                    if (sqlite3_prepare_v2(server_.db_, "INSERT INTO users (username, password) VALUES (?, ?);", -1, &stmt, nullptr) == SQLITE_OK) {
+                        sqlite3_bind_text(stmt, 1, u.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 2, hashed_p.c_str(), -1, SQLITE_TRANSIENT);
+                        if (sqlite3_step(stmt) == SQLITE_DONE) {
+                            res["success"] = true; res["msg"] = "Registration successful!";
+                        } else {
+                            res["success"] = false; res["msg"] = "Registration failed!";
+                        }
+                        sqlite3_finalize(stmt);
                     } else {
-                        res["success"] = true; res["msg"] = "Registration successful!";
+                        res["success"] = false; res["msg"] = "Registration failed!";
                     }
                     send(res.dump());
-                } 
+                }
                 else if (msg_type == "login") {
                     std::string u = data.value("username", "");
                     std::string p = data.value("password", "");
-                    std::string sql = "SELECT id FROM users WHERE username = '" + u + "' AND password = '" + p + "';";
-                    bool login_success = false;
-                    auto cb = [](void* data, int, char**, char**) -> int { *static_cast<bool*>(data) = true; return 0; };
-                    char* errMsg = nullptr;
-                    sqlite3_exec(server_.db_, sql.c_str(), cb, &login_success, &errMsg);
-                    
+                    std::string hashed_p = sha256(p);
                     json res = {{"type", "login_res"}};
+                    bool login_success = false;
+                    sqlite3_stmt* stmt;
+                    if (sqlite3_prepare_v2(server_.db_, "SELECT id FROM users WHERE username = ? AND password = ?;", -1, &stmt, nullptr) == SQLITE_OK) {
+                        sqlite3_bind_text(stmt, 1, u.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(stmt, 2, hashed_p.c_str(), -1, SQLITE_TRANSIENT);
+                        login_success = (sqlite3_step(stmt) == SQLITE_ROW);
+                        sqlite3_finalize(stmt);
+                    }
                     if (login_success) {
                         username_ = u;
                         server_.register_user(username_, this);
-
                         res["success"] = true; res["username"] = u; res["msg"] = "Login successful!";
                     } else {
                         res["success"] = false; res["msg"] = "Invalid credentials!";
                     }
-                    if (errMsg) sqlite3_free(errMsg);
                     send(res.dump());
                 } 
                 else if (msg_type == "create_room") {
@@ -377,7 +397,7 @@ public:
                     send(init_msg.dump());
                     room_->send_history(this);
 
-                    json presence_msg = {{"type", "presence"}, {"action", "join"}, {"site_id", site_id_}};
+                    json presence_msg = {{"type", "presence"}, {"action", "join"}, {"site_id", site_id_}, {"username", username_}};
                     room_->broadcast_except(this, presence_msg.dump());
                 }
             } else {
@@ -574,7 +594,7 @@ int main() {
         acceptor->listen(net::socket_base::max_listen_connections, ec);
         do_accept(ioc, acceptor, global_server);
 
-        std::cout << "🚀 服务器已启动 (支持单点互斥登录): ws://0.0.0.0:9002" << std::endl;
+        std::cout << "🚀 服务器已启动: ws://0.0.0.0:9002" << std::endl;
         ioc.run();
     } catch (...) {}
 }
