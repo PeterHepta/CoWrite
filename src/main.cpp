@@ -60,10 +60,14 @@ public:
     void join(Session* session);
     void leave(Session* session);
     void broadcast_except(Session* sender, const std::string& message);
-    void send_history(Session* session); 
+    void send_history(Session* session);
     void save_event(const std::string& payload);
     uint32_t generate_site_id() { return next_site_id_++; }
     const std::string& doc_id() const { return doc_id_; }
+    bool has_session(Session* session) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return sessions_.count(session) > 0;
+    }
 };
 
 class Server {
@@ -119,6 +123,21 @@ public:
         ");";
         sqlite3_exec(db_, create_invite_codes_sql, nullptr, nullptr, nullptr);
 
+        // Migration: add created_at to invite_codes (ignored if already exists)
+        sqlite3_exec(db_,
+            "ALTER TABLE invite_codes ADD COLUMN created_at INTEGER DEFAULT (strftime('%s','now'));",
+            nullptr, nullptr, nullptr);
+
+        const char* create_room_members_sql =
+            "CREATE TABLE IF NOT EXISTS room_members ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "username TEXT NOT NULL, "
+            "doc_id TEXT NOT NULL, "
+            "joined_at INTEGER NOT NULL DEFAULT (strftime('%s','now')), "
+            "UNIQUE(username, doc_id)"
+            ");";
+        sqlite3_exec(db_, create_room_members_sql, nullptr, nullptr, nullptr);
+
         db_thread_ = std::thread(&Server::db_worker_loop, this);
     }
 
@@ -148,6 +167,17 @@ public:
 
     void register_user(const std::string& username, Session* session);
     void unregister_user(const std::string& username, Session* session);
+
+    bool is_user_online(const std::string& username) {
+        std::lock_guard<std::mutex> lock(user_mutex_);
+        return active_users_.count(username) > 0;
+    }
+
+    Session* get_user_session(const std::string& username) {
+        std::lock_guard<std::mutex> lock(user_mutex_);
+        auto it = active_users_.find(username);
+        return it != active_users_.end() ? it->second : nullptr;
+    }
 
     std::string generate_invite_code() {
         static const char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -385,6 +415,18 @@ public:
                     room_->join(this);
                     joined_ = true;
 
+                    // 记录成员关系（INSERT OR IGNORE 保证幂等）
+                    {
+                        sqlite3_stmt* mem_stmt;
+                        sqlite3_prepare_v2(server_.db_,
+                            "INSERT OR IGNORE INTO room_members (username, doc_id) VALUES (?, ?);",
+                            -1, &mem_stmt, nullptr);
+                        sqlite3_bind_text(mem_stmt, 1, username_.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(mem_stmt, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_step(mem_stmt);
+                        sqlite3_finalize(mem_stmt);
+                    }
+
                     // 查出房间名
                     std::string room_name;
                     sqlite3_stmt* nm;
@@ -399,6 +441,94 @@ public:
 
                     json presence_msg = {{"type", "presence"}, {"action", "join"}, {"site_id", site_id_}, {"username", username_}};
                     room_->broadcast_except(this, presence_msg.dump());
+                }
+                else if (msg_type == "get_my_rooms") {
+                    if (username_.empty()) {
+                        send(R"({"type":"get_my_rooms_res","success":false,"msg":"请先登录"})");
+                    } else {
+                        sqlite3_stmt* sel;
+                        const char* sql =
+                            "SELECT rm.doc_id, "
+                            "       COALESCE(MAX(ic.room_name), rm.doc_id) AS room_name, "
+                            "       COALESCE(MAX(ic.created_by), '') AS created_by, "
+                            "       COALESCE(MAX(ic.created_at), 0) AS created_at, "
+                            "       rm.joined_at "
+                            "FROM room_members rm "
+                            "LEFT JOIN invite_codes ic ON ic.doc_id = rm.doc_id "
+                            "WHERE rm.username = ? "
+                            "GROUP BY rm.doc_id "
+                            "ORDER BY rm.joined_at DESC;";
+                        if (sqlite3_prepare_v2(server_.db_, sql, -1, &sel, nullptr) == SQLITE_OK) {
+                            sqlite3_bind_text(sel, 1, username_.c_str(), -1, SQLITE_TRANSIENT);
+                            json rooms = json::array();
+                            while (sqlite3_step(sel) == SQLITE_ROW) {
+                                json r;
+                                auto col_text = [&](int col) -> std::string {
+                                    const char* t = reinterpret_cast<const char*>(sqlite3_column_text(sel, col));
+                                    return t ? t : "";
+                                };
+                                r["doc_id"]     = col_text(0);
+                                r["room_name"]  = col_text(1);
+                                r["created_by"] = col_text(2);
+                                r["created_at"] = sqlite3_column_int64(sel, 3);
+                                r["joined_at"]  = sqlite3_column_int64(sel, 4);
+                                rooms.push_back(r);
+                            }
+                            sqlite3_finalize(sel);
+                            json res = {{"type", "get_my_rooms_res"}, {"success", true}, {"rooms", rooms}};
+                            send(res.dump());
+                        } else {
+                            send(R"({"type":"get_my_rooms_res","success":false,"msg":"查询失败"})");
+                        }
+                    }
+                }
+                else if (msg_type == "rejoin_room") {
+                    std::string doc_id = data.value("doc_id", "");
+                    if (username_.empty()) {
+                        send(R"({"type":"rejoin_room_res","success":false,"msg":"请先登录"})");
+                    } else if (doc_id.empty()) {
+                        send(R"({"type":"rejoin_room_res","success":false,"msg":"doc_id 不能为空"})");
+                    } else {
+                        // 验证用户在该房间有成员记录
+                        sqlite3_stmt* chk;
+                        sqlite3_prepare_v2(server_.db_,
+                            "SELECT id FROM room_members WHERE username=? AND doc_id=?;",
+                            -1, &chk, nullptr);
+                        sqlite3_bind_text(chk, 1, username_.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(chk, 2, doc_id.c_str(),    -1, SQLITE_TRANSIENT);
+                        bool is_member = (sqlite3_step(chk) == SQLITE_ROW);
+                        sqlite3_finalize(chk);
+
+                        if (!is_member) {
+                            send(R"({"type":"rejoin_room_res","success":false,"msg":"您没有该房间的访问权限"})");
+                        } else {
+                            room_ = server_.get_or_create_room(doc_id);
+                            int req_site = data.value("requested_site_id", 0);
+                            if (req_site > 0) site_id_ = req_site;
+                            else site_id_ = room_->generate_site_id();
+
+                            room_->join(this);
+                            joined_ = true;
+
+                            std::string room_name;
+                            sqlite3_stmt* nm;
+                            sqlite3_prepare_v2(server_.db_,
+                                "SELECT room_name FROM invite_codes WHERE doc_id=? LIMIT 1;",
+                                -1, &nm, nullptr);
+                            sqlite3_bind_text(nm, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                            if (sqlite3_step(nm) == SQLITE_ROW)
+                                room_name = reinterpret_cast<const char*>(sqlite3_column_text(nm, 0));
+                            sqlite3_finalize(nm);
+
+                            json init_msg = {{"type", "init"}, {"site_id", site_id_}, {"room_name", room_name}};
+                            send(init_msg.dump());
+                            room_->send_history(this);
+
+                            json presence_msg = {{"type","presence"},{"action","join"},
+                                                 {"site_id", site_id_},{"username", username_}};
+                            room_->broadcast_except(this, presence_msg.dump());
+                        }
+                    }
                 }
             } else {
                 std::string msg_type = data.value("type", "");
@@ -503,12 +633,49 @@ public:
                                       << " 重命名为: " << new_name << std::endl;
                         }
                     }
+                } else if (msg_type == "get_room_members") {
+                    // 先查出创建者
+                    std::string room_owner;
+                    {
+                        sqlite3_stmt* own;
+                        sqlite3_prepare_v2(server_.db_,
+                            "SELECT created_by FROM invite_codes WHERE doc_id=? LIMIT 1;",
+                            -1, &own, nullptr);
+                        sqlite3_bind_text(own, 1, room_->doc_id().c_str(), -1, SQLITE_TRANSIENT);
+                        if (sqlite3_step(own) == SQLITE_ROW)
+                            room_owner = reinterpret_cast<const char*>(sqlite3_column_text(own, 0));
+                        sqlite3_finalize(own);
+                    }
+                    // 查询该房间的所有历史成员及其在线状态
+                    sqlite3_stmt* sel;
+                    sqlite3_prepare_v2(server_.db_,
+                        "SELECT username FROM room_members WHERE doc_id=? ORDER BY joined_at ASC;",
+                        -1, &sel, nullptr);
+                    sqlite3_bind_text(sel, 1, room_->doc_id().c_str(), -1, SQLITE_TRANSIENT);
+                    json members = json::array();
+                    while (sqlite3_step(sel) == SQLITE_ROW) {
+                        std::string uname = reinterpret_cast<const char*>(sqlite3_column_text(sel, 0));
+                        json m;
+                        m["username"] = uname;
+                        m["is_owner"] = (uname == room_owner);
+                        Session* user_session = server_.get_user_session(uname);
+                        if (user_session && room_->has_session(user_session)) {
+                            m["status"] = "in_room";
+                        } else if (user_session) {
+                            m["status"] = "online";
+                        } else {
+                            m["status"] = "offline";
+                        }
+                        members.push_back(m);
+                    }
+                    sqlite3_finalize(sel);
+                    json res = {{"type", "get_room_members_res"}, {"success", true}, {"members", members}};
+                    send(res.dump());
                 } else if (msg_type == "cursor" || msg_type == "presence") {
                     room_->broadcast_except(this, payload);
                 } else {
                     room_->save_event(payload); room_->broadcast_except(this, payload);
-                }
-            }
+                }            }
         } catch (...) {}
         do_read();
     }

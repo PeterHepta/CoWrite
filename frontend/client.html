@@ -2,68 +2,181 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>协同富文本编辑器</title>
+    <title>CoWrite</title>
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <link href="https://unpkg.com/quill-emoji/dist/quill-emoji.css" rel="stylesheet">
     <style>
         body { font-family: sans-serif; padding: 20px; background: #f5f5f7; margin: 0; }
         .main-container { display: flex; flex-direction: column; height: 92vh; max-width: 1000px; margin: 0 auto; gap: 10px; }
-        .panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.1); }
-        .status-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; margin-bottom: 0;}
+        .panel { background: white; border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.1); }
+        .status-header {
+            display: flex; align-items: stretch; gap: 0;
+            padding: 0; overflow: hidden;
+            border-bottom: none; margin-bottom: 0;
+        }
+        .status-section {
+            display: flex; align-items: center; gap: 8px;
+            padding: 10px 16px;
+        }
+        .status-section + .status-section {
+            border-left: 1px solid #eef0f3;
+        }
+        .status-section-brand {
+            min-width: 90px;
+        }
+        .status-section-brand .brand-name {
+            font-size: 15px; font-weight: 700; color: #1a1a2e; letter-spacing: -0.2px;
+        }
+        .status-section-doc {
+            flex: 1;
+        }
+        .status-section-user {
+            gap: 6px;
+        }
+        .status-pill {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: #f2f2f7; border-radius: 20px;
+            padding: 3px 10px; font-size: 12px; color: #3a3a4a; white-space: nowrap;
+        }
+        .status-pill.online { background: #e8f8ee; color: #1a7a3a; }
+        .status-pill.waiting { background: #fff8e6; color: #996600; }
         #editor-container { flex: 1; border-radius: 0 0 8px 8px; font-size: 16px; border: 1px solid #ccc; background: white; }
-        .ql-toolbar.ql-snow { border-radius: 8px 8px 0 0; border: 1px solid #ccc; background: #fafafa; border-bottom:none;}
+        .ql-toolbar.ql-snow { border-radius: 8px 8px 0 0; border: 1px solid #ccc; background: #fafafa; border-bottom: none; }
+        /* 工具栏与状态栏视觉对齐：工具栏内元素垂直居中 */
+        .ql-toolbar.ql-snow .ql-formats { margin-right: 12px; vertical-align: middle; }
         #log { background: #2d2d2d; color: #a9dc76; padding: 10px; height: 80px; overflow-y: auto; font-family: monospace; border-radius: 4px; font-size: 11px; margin-top: 5px; }
         .log-own { color: #fc9867; }
         
         #auth-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+            background: #f0f4f8;
             display: flex; justify-content: center; align-items: center; z-index: 9999;
         }
-        .auth-card {
-            background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            width: 300px; display: flex; flex-direction: column; gap: 15px; text-align: center;
+        .auth-page {
+            width: 380px;
+            display: flex; flex-direction: column; align-items: center; gap: 0;
         }
-        .auth-card h3 { margin: 0 0 10px 0; color: #333; }
-        .auth-card input { padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px; outline: none; }
-        .auth-card input:focus { border-color: #007aff; }
-        .auth-card button { padding: 12px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .auth-card button:hover { opacity: 0.9; transform: translateY(-1px); }
-        #btn-login { background: #007aff; color: white; }
-        #btn-register { background: #f2f2f7; color: #007aff; }
+        .auth-logo {
+            margin-bottom: 32px; text-align: center;
+        }
+        .auth-logo .logo-icon {
+            width: 52px; height: 52px; background: #007aff; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 12px auto;
+            box-shadow: 0 4px 16px rgba(0,122,255,0.25);
+        }
+        .auth-logo .logo-icon svg { width: 28px; height: 28px; fill: white; }
+        .auth-logo h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin: 0 0 4px 0; letter-spacing: -0.3px; }
+        .auth-logo p { font-size: 13px; color: #8a8a9a; margin: 0; }
+        .auth-card {
+            background: white; border-radius: 16px; box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+            width: 100%; overflow: hidden;
+        }
+        .auth-tabs {
+            display: flex; border-bottom: 1px solid #f0f0f5;
+        }
+        .auth-tab {
+            flex: 1; padding: 16px; text-align: center; font-size: 14px; font-weight: 600;
+            color: #8a8a9a; cursor: pointer; border: none; background: none;
+            border-bottom: 2px solid transparent; margin-bottom: -1px;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .auth-tab.active { color: #007aff; border-bottom-color: #007aff; }
+        .auth-form { padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+        .auth-form input {
+            padding: 13px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
+            font-size: 15px; outline: none; background: #fafafe; transition: border-color 0.2s, background 0.2s;
+            color: #1a1a2e;
+        }
+        .auth-form input:focus { border-color: #007aff; background: white; }
+        .auth-form input::placeholder { color: #b0b0c0; }
+        .auth-submit {
+            padding: 14px; border: none; border-radius: 10px; font-size: 15px;
+            cursor: pointer; font-weight: 600; transition: opacity 0.2s, transform 0.15s;
+            background: #007aff; color: white; margin-top: 4px;
+        }
+        .auth-submit:hover { opacity: 0.9; transform: translateY(-1px); }
+        .auth-submit:active { transform: translateY(0); }
         
         #btn-logout {
-            background: #ff3b30; color: white; border: none; border-radius: 4px;
-            padding: 4px 10px; font-size: 12px; cursor: pointer; margin-left: 15px; display: none;
+            background: none; color: #ff3b30; border: 1px solid #ff3b30; border-radius: 6px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; display: none;
         }
-        #btn-logout:hover { opacity: 0.8; }
+        #btn-logout:hover { background: #ff3b30; color: white; }
+        .action-btn {
+            background: none; border: 1px solid #e0e0e8; border-radius: 6px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; color: #3a3a4a; white-space: nowrap;
+            display: none; align-items: center; gap: 4px;
+        }
+        .action-btn:hover { background: #f2f2f7; }
+        .action-btn.orange { border-color: #ff9f0a; color: #ff9f0a; }
+        .action-btn.orange:hover { background: #ff9f0a; color: white; }
+        .action-btn.blue { border-color: #007aff; color: #007aff; }
+        .action-btn.blue:hover { background: #007aff; color: white; }
 
-        #room-choice-overlay, #room-created-overlay, #join-room-overlay, #invite-type-overlay, #room-name-overlay, #gen-invite-overlay {
+        .flow-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(5px);
+            background: #f0f4f8;
             display: none; justify-content: center; align-items: center; z-index: 9999;
         }
-        #invite-code-display {
-            font-size: 28px; letter-spacing: 6px; color: #007aff;
-            font-family: monospace; font-weight: bold;
-            background: #f0f6ff; padding: 12px 20px; border-radius: 8px; margin: 5px 0;
+        .flow-page {
+            width: 380px;
+            display: flex; flex-direction: column; align-items: center;
+        }
+        .flow-header {
+            margin-bottom: 28px; text-align: center;
+        }
+        .flow-header .flow-icon {
+            width: 48px; height: 48px; border-radius: 13px;
+            display: flex; align-items: center; justify-content: center;
+            margin: 0 auto 10px auto; font-size: 22px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+        }
+        .flow-header h2 { font-size: 20px; font-weight: 700; color: #1a1a2e; margin: 0 0 4px 0; letter-spacing: -0.3px; }
+        .flow-header p { font-size: 13px; color: #8a8a9a; margin: 0; }
+        .flow-card {
+            background: white; border-radius: 16px; box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+            width: 100%; padding: 24px; display: flex; flex-direction: column; gap: 10px;
+        }
+        .flow-card input {
+            padding: 13px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
+            font-size: 15px; outline: none; background: #fafafe; transition: border-color 0.2s, background 0.2s;
+            color: #1a1a2e; width: 100%; box-sizing: border-box;
+        }
+        .flow-card input:focus { border-color: #007aff; background: white; }
+        .flow-card input::placeholder { color: #b0b0c0; }
+        .flow-btn {
+            padding: 13px 14px; border: none; border-radius: 10px; font-size: 15px;
+            cursor: pointer; font-weight: 600; transition: opacity 0.2s, transform 0.15s;
+            width: 100%; text-align: center;
+        }
+        .flow-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .flow-btn:active { transform: translateY(0); }
+        .flow-btn-primary { background: #007aff; color: white; }
+        .flow-btn-green { background: #34c759; color: white; }
+        .flow-btn-secondary { background: #f2f2f7; color: #3a3a4a; }
+        .flow-btn-secondary:hover { background: #e8e8f0; opacity: 1; }
+        .flow-divider { height: 1px; background: #f0f0f5; margin: 4px 0; }
+        .flow-hint { font-size: 13px; color: #8a8a9a; text-align: center; margin: 0; }
+       
+        #invite-code-display, #gen-invite-code-display {
+            font-size: 30px; letter-spacing: 8px; color: #007aff;
+            font-family: monospace; font-weight: 700;
+            background: #f0f6ff; padding: 14px 20px; border-radius: 12px;
+            text-align: center; border: 1.5px solid #d0e8ff;
         }
         #input-invite-code {
-            padding: 12px; border: 1px solid #ccc; border-radius: 6px;
-            font-size: 20px; font-family: monospace; letter-spacing: 4px;
-            text-align: center; text-transform: uppercase; outline: none;
+            font-size: 22px; font-family: monospace; letter-spacing: 6px;
+            text-align: center; text-transform: uppercase;
         }
-        #input-invite-code:focus { border-color: #007aff; }
-        #btn-create-room { background: #34c759; color: white; }
-        #btn-join-room { background: #007aff; color: white; }
-        #btn-enter-room { background: #34c759; color: white; }
-        #btn-copy-code { background: #007aff; color: white; }
-        #btn-join-with-code { background: #007aff; color: white; }
-        #btn-back-choice, #btn-go-back-login, #btn-new-room { background: #f2f2f7; color: #333; }
-        #btn-invite-once, #btn-invite-permanent { background: #f2f2f7; color: #333; }
-        #btn-invite-once:hover, #btn-invite-permanent:hover { background: #e5e5ea; }
-        #btn-gen-invite { background: #ff9f0a; color: white; border: none; border-radius: 4px; padding: 4px 10px; font-size: 12px; cursor: pointer; margin-left: 10px; display: none; }
-        #btn-gen-invite:hover { opacity: 0.85; }
+
+        #timed-options select {
+            width: 100%; padding: 12px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
+            font-size: 14px; outline: none; background: #fafafe; color: #1a1a2e;
+            appearance: none; cursor: pointer;
+        }
+        #timed-options { display: flex; flex-direction: column; gap: 10px; }
+        
         #ql-custom-placeholder {
             position: absolute; top: 0; left: 0;
             padding: 12px 15px;
@@ -71,99 +184,224 @@
             pointer-events: none;
             user-select: none;
         }
-    </style>
+        .room-card {
+            display: flex; flex-direction: column; gap: 4px;
+            padding: 14px 16px; border: 1.5px solid #e8e8f0; border-radius: 10px;
+            cursor: pointer; background: #fafafe;
+            transition: border-color .18s, background .18s;
+        }
+        .room-card:hover { border-color: #007aff; background: #f0f6ff; }
+        .room-card-name { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+        .room-card-meta { font-size: 12px; color: #8a8a9a; display: flex; gap: 12px; flex-wrap: wrap; }
+
+        #members-panel {
+            position: fixed; top: auto; left: auto; margin-top: 4px;
+            background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.13);
+            border: 1px solid #e8e8f0; min-width: 220px; z-index: 1000;
+            display: none; flex-direction: column; overflow: hidden;
+        }
+        #members-panel.open { display: flex; }
+        .members-panel-header {
+            padding: 10px 14px 8px; font-size: 12px; font-weight: 600;
+            color: #8a8a9a; border-bottom: 1px solid #f0f0f5; background: #fafafe;
+        }
+        .members-list { max-height: 220px; overflow-y: auto; padding: 6px 0; }
+        .member-item {
+            display: flex; align-items: center; gap: 8px;
+            padding: 7px 14px; font-size: 13px; color: #1a1a2e;
+        }
+        .member-dot {
+            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+        }
+        .member-dot.in-room  { background: #34c759; }
+        .member-dot.online   { background: #007aff; }
+        .member-dot.offline  { background: #c7c7cc; }
+        .member-status-label { font-size: 11px; color: #8a8a9a; margin-left: auto; white-space: nowrap; }
+        .member-owner-tag {
+            font-size: 10px; color: #ff9f0a; border: 1px solid #ff9f0a;
+            border-radius: 4px; padding: 0px 4px; vertical-align: middle; margin-left: 4px;
+        }
+</style>
 </head>
 <body>
 
 <div id="auth-overlay">
-    <div class="auth-card">
-        <h3>👋 欢迎来到协同文档</h3>
-        <input type="text" id="input-username" placeholder="请输入用户名" autocomplete="off">
-        <input type="password" id="input-password" placeholder="请输入密码">
-        <button id="btn-login">登 录</button>
-        <button id="btn-register">注 册 新 账 号</button>
-    </div>
-</div>
-
-<div id="room-choice-overlay">
-    <div class="auth-card">
-        <h3>📌 选择加入方式</h3>
-        <button id="btn-create-room">✨ 创建新房间</button>
-        <button id="btn-join-room">🔓 加入现有房间</button>
-        <button id="btn-go-back-login">← 返回登录</button>
-    </div>
-</div>
-
-<div id="room-name-overlay">
-    <div class="auth-card">
-        <h3>✨ 创建新房间</h3>
-        <input type="text" id="input-room-name" placeholder="输入房间名称（可重复）" maxlength="30" autocomplete="off">
-        <button id="btn-confirm-room-name" style="background:#34c759; color:white;">下一步：设置邀请码 →</button>
-        <button id="btn-back-from-name">← 返回</button>
-    </div>
-</div>
-
-<div id="invite-type-overlay">
-    <div class="auth-card">
-        <h3>🔑 设置邀请码类型</h3>
-        <button id="btn-invite-once">🔂 一次性使用</button>
-        <button id="btn-invite-timed">⏱️ 限时有效</button>
-        <div id="timed-options" style="display:none; width:100%;">
-            <select id="select-hours" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; outline:none;">
-                <option value="1">1 小时</option>
-                <option value="6">6 小时</option>
-                <option value="24" selected>24 小时</option>
-                <option value="72">3 天</option>
-                <option value="168">7 天</option>
-            </select>
-            <button id="btn-confirm-timed" style="background:#ff9500; color:white; margin-top:0;">确认创建</button>
+    <div class="auth-page">
+        <div class="auth-logo">
+            <div class="logo-icon">
+                <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 13h8v1.5H8V13zm0 3h8v1.5H8V16zm0-6h4v1.5H8V10z"/>
+                </svg>
+            </div>
+            <h1>CoWrite</h1>
+            <p>实时协作，随时随地</p>
         </div>
-        <button id="btn-invite-permanent">♾️ 永久有效</button>
-        <button id="btn-back-room-choice">← 返回</button>
+        <div class="auth-card">
+            <div class="auth-tabs">
+                <button class="auth-tab active" id="tab-login" onclick="switchTab('login')">登录</button>
+                <button class="auth-tab" id="tab-register" onclick="switchTab('register')">注册</button>
+            </div>
+            <div class="auth-form" id="form-login">
+                <input type="text" id="input-username" placeholder="用户名" autocomplete="off">
+                <input type="password" id="input-password" placeholder="密码">
+                <button class="auth-submit" id="btn-login">登录</button>
+            </div>
+            <div class="auth-form" id="form-register" style="display:none;">
+                <input type="text" id="input-username-reg" placeholder="用户名" autocomplete="off">
+                <input type="password" id="input-password-reg" placeholder="密码">
+                <button class="auth-submit" id="btn-register">注册账号</button>
+            </div>
+        </div>
     </div>
 </div>
 
-<div id="room-created-overlay">
-    <div class="auth-card">
-        <h3>🎉 房间创建成功</h3>
-        <p id="invite-type-hint" style="color:#666; font-size:13px; margin:0;"></p>
-        <div id="invite-code-display">------</div>
-        <button id="btn-copy-code">📋 复制邀请码</button>
-        <button id="btn-enter-room">进入房间 →</button>
-        <button id="btn-new-room">创建另一个房间</button>
+<div id="room-choice-overlay" class="flow-overlay">
+    <div class="flow-page">
+        <div class="flow-header">
+            <div class="flow-icon" style="background:#eef6ff;">🏠</div>
+            <h2>进入 CoWrite</h2>
+            <p>创建或加入一个房间开始协作</p>
+        </div>
+        <div class="flow-card">
+            <button class="flow-btn flow-btn-green" id="btn-create-room">创建新房间</button>
+            <button class="flow-btn flow-btn-primary" id="btn-join-room">加入现有房间</button>
+            <button class="flow-btn flow-btn-primary" id="btn-my-rooms">加入曾经加入过的房间</button>
+            <div class="flow-divider"></div>
+            <button class="flow-btn flow-btn-secondary" id="btn-go-back-login">返回登录</button>
+        </div>
     </div>
 </div>
 
-<div id="join-room-overlay">
-    <div class="auth-card">
-        <h3>🔓 加入房间</h3>
-        <p style="color:#666; font-size:13px; margin:0;">请输入 6 位邀请码</p>
-        <input type="text" id="input-invite-code" placeholder="XXXXXX" maxlength="6">
-        <button id="btn-join-with-code">加入房间</button>
-        <button id="btn-back-choice">← 返回</button>
+<div id="room-name-overlay" class="flow-overlay">
+    <div class="flow-page">
+        <div class="flow-header">
+            <div class="flow-icon" style="background:#eeffed;">✏️</div>
+            <h2>创建新房间</h2>
+            <p>给你的协作空间起个名字</p>
+        </div>
+        <div class="flow-card">
+            <input type="text" id="input-room-name" placeholder="房间名称" maxlength="30" autocomplete="off">
+            <button class="flow-btn flow-btn-green" id="btn-confirm-room-name">下一步：设置邀请码</button>
+            <button class="flow-btn flow-btn-secondary" id="btn-back-from-name">返回</button>
+        </div>
     </div>
 </div>
 
-<div id="gen-invite-overlay">
-    <div class="auth-card">
-        <h3>🔑 邀请码已生成</h3>
-        <p id="gen-invite-type-hint" style="color:#666; font-size:13px; margin:0;"></p>
-        <div id="gen-invite-code-display" style="font-size:28px; letter-spacing:6px; color:#007aff; font-family:monospace; font-weight:bold; background:#f0f6ff; padding:12px 20px; border-radius:8px; margin:5px 0;">------</div>
-        <button id="btn-copy-gen-code">📋 复制邀请码</button>
-        <button id="btn-close-gen-invite" style="background:#f2f2f7; color:#333;">关闭</button>
+<div id="invite-type-overlay" class="flow-overlay">
+    <div class="flow-page">
+        <div class="flow-header">
+            <div class="flow-icon" style="background:#fff8ee;">🔑</div>
+            <h2>设置邀请码</h2>
+            <p>选择邀请码的有效期类型</p>
+        </div>
+        <div class="flow-card">
+            <button class="flow-btn flow-btn-secondary" id="btn-invite-once">一次性使用</button>
+            <button class="flow-btn flow-btn-secondary" id="btn-invite-timed">限时有效</button>
+            <div id="timed-options" style="display:none;">
+                <select id="select-hours">
+                    <option value="1">1 小时</option>
+                    <option value="6">6 小时</option>
+                    <option value="24" selected>24 小时</option>
+                    <option value="72">3 天</option>
+                    <option value="168">7 天</option>
+                </select>
+                <button class="flow-btn flow-btn-primary" id="btn-confirm-timed">确认创建</button>
+            </div>
+            <button class="flow-btn flow-btn-secondary" id="btn-invite-permanent">永久有效</button>
+            <div class="flow-divider"></div>
+            <button class="flow-btn flow-btn-secondary" id="btn-back-room-choice">返回</button>
+        </div>
+    </div>
+</div>
+
+<div id="room-created-overlay" class="flow-overlay">
+    <div class="flow-page">
+        <div class="flow-header">
+            <div class="flow-icon" style="background:#eeffed;">🎉</div>
+            <h2>房间创建成功</h2>
+            <p id="invite-type-hint">分享邀请码，邀请伙伴加入</p>
+        </div>
+        <div class="flow-card">
+            <div id="invite-code-display">------</div>
+            <button class="flow-btn flow-btn-primary" id="btn-copy-code">复制邀请码</button>
+            <button class="flow-btn flow-btn-green" id="btn-enter-room">进入房间</button>
+            <div class="flow-divider"></div>
+            <button class="flow-btn flow-btn-secondary" id="btn-new-room">创建另一个房间</button>
+        </div>
+    </div>
+</div>
+
+<div id="join-room-overlay" class="flow-overlay">
+    <div class="flow-page">
+        <div class="flow-header">
+            <div class="flow-icon" style="background:#eef6ff;">🔓</div>
+            <h2>加入房间</h2>
+            <p>输入 6 位邀请码</p>
+        </div>
+        <div class="flow-card">
+            <input type="text" id="input-invite-code" placeholder="XXXXXX" maxlength="6">
+            <button class="flow-btn flow-btn-primary" id="btn-join-with-code">加入房间</button>
+            <div class="flow-divider"></div>
+            <button class="flow-btn flow-btn-secondary" id="btn-back-choice">返回</button>
+        </div>
+    </div>
+</div>
+
+<div id="my-rooms-overlay" class="flow-overlay">
+    <div class="flow-page" style="width:480px; max-width:96vw;">
+        <div class="flow-header">
+            <div class="flow-icon" style="background:#eef6ff;">🕘</div>
+            <h2>我加入过的房间</h2>
+            <p>点击任意房间直接进入</p>
+        </div>
+        <div class="flow-card">
+            <p id="my-rooms-loading" class="flow-hint">加载中...</p>
+            <div id="my-rooms-list" style="display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;"></div>
+            <div class="flow-divider"></div>
+            <button class="flow-btn flow-btn-secondary" id="btn-back-from-my-rooms">返回</button>
+        </div>
+    </div>
+</div>
+
+<div id="gen-invite-overlay" class="flow-overlay">
+    <div class="flow-page">
+        <div class="flow-header">
+            <div class="flow-icon" style="background:#fff8ee;">🔑</div>
+            <h2>邀请码已生成</h2>
+            <p id="gen-invite-type-hint">分享给需要加入的人</p>
+        </div>
+        <div class="flow-card">
+            <div id="gen-invite-code-display">------</div>
+            <button class="flow-btn flow-btn-primary" id="btn-copy-gen-code">复制邀请码</button>
+            <div class="flow-divider"></div>
+            <button class="flow-btn flow-btn-secondary" id="btn-close-gen-invite">关闭</button>
+        </div>
     </div>
 </div>
 
 <div class="main-container">
     <div class="panel status-header">
-        <h2 style="margin:0; color: #333;">协同标题文档 ✨</h2>
-        <div style="font-size: 14px; display: flex; align-items: center;">
-            <span id="doc-display" style="color:#007aff; margin-right: 5px; font-weight:bold;"></span>
-            <button id="btn-rename-room" title="修改房间名" style="display:none; background:none; border:none; cursor:pointer; color:#007aff; font-size:13px; padding:2px 6px; margin-right:10px;">✏️</button>
-            状态: <span id="status" style="color: orange; font-weight: bold; margin-right: 15px;">等待登录 🟡</span>
-            <span id="site-display" style="color: #666;">身份未确认</span>
-            <button id="btn-gen-invite">🔑 邀请</button>
-            <button id="btn-leave-room" style="display:none; background:#ff9f0a; color:white; border:none; border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer; margin-left:10px;">退出房间</button>
+        <!-- 品牌区 -->
+        <div class="status-section status-section-brand">
+            <span class="brand-name">CoWrite ✨</span>
+        </div>
+        <!-- 文档区 -->
+        <div class="status-section status-section-doc">
+            <span id="doc-display" style="color:#007aff; font-weight:bold; font-size:13px;"></span>
+            <button id="btn-rename-room" title="修改房间名" class="action-btn blue" style="display:none;">✏️ 重命名</button>
+            <button id="btn-gen-invite" class="action-btn orange" style="display:none;">🔑 邀请</button>
+            <button id="btn-members" class="action-btn blue" style="display:none;">👥 成员</button>
+            <button id="btn-leave-room" class="action-btn orange" style="display:none;">退出房间</button>
+            <!-- 成员下拉面板 -->
+            <div id="members-panel">
+                <div class="members-panel-header">房间成员</div>
+                <div class="members-list" id="members-list"><div class="member-item" style="color:#8a8a9a;">加载中...</div></div>
+            </div>
+        </div>
+        <!-- 用户状态区 -->
+        <div class="status-section status-section-user">
+            <span id="status" class="status-pill waiting">等待登录 🟡</span>
+            <span id="site-display" class="status-pill" style="color:#666;">身份未确认</span>
             <button id="btn-logout">退出登录</button>
         </div>
     </div>
@@ -185,8 +423,19 @@
     const roomChoiceOverlay = document.getElementById('room-choice-overlay');
     const roomCreatedOverlay = document.getElementById('room-created-overlay');
     const joinRoomOverlay = document.getElementById('join-room-overlay');
+    const myRoomsOverlay = document.getElementById('my-rooms-overlay');
+    const myRoomsList    = document.getElementById('my-rooms-list');
+    const myRoomsLoading = document.getElementById('my-rooms-loading');
     const inviteCodeDisplay = document.getElementById('invite-code-display');
     const inputInviteCode = document.getElementById('input-invite-code');
+
+    function switchTab(tab) {
+        const isLogin = tab === 'login';
+        document.getElementById('tab-login').classList.toggle('active', isLogin);
+        document.getElementById('tab-register').classList.toggle('active', !isLogin);
+        document.getElementById('form-login').style.display = isLogin ? 'flex' : 'none';
+        document.getElementById('form-register').style.display = isLogin ? 'none' : 'flex';
+    }
 
     let currentRoom = JSON.parse(localStorage.getItem('currentRoom') || 'null');
 
@@ -249,7 +498,13 @@
         }
     }
 
-    const ws = new WebSocket("ws://39.102.113.202:9002"); 
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    const ws = new WebSocket("ws://39.102.113.202:9002");
     
     ws.onopen = () => {
         if (myUsername && myPassword) {
@@ -264,8 +519,8 @@
     };
 
     document.getElementById('btn-register').onclick = () => {
-        myUsername = document.getElementById('input-username').value;
-        myPassword = document.getElementById('input-password').value;
+        myUsername = document.getElementById('input-username-reg').value;
+        myPassword = document.getElementById('input-password-reg').value;
         if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
         ws.send(JSON.stringify({ type: "register", username: myUsername, password: myPassword }));
     };
@@ -412,6 +667,19 @@
         inputInviteCode.focus();
     };
 
+    document.getElementById('btn-my-rooms').onclick = () => {
+        roomChoiceOverlay.style.display = 'none';
+        myRoomsOverlay.style.display = 'flex';
+        myRoomsList.innerHTML = '';
+        myRoomsLoading.style.display = 'block';
+        ws.send(JSON.stringify({ type: "get_my_rooms" }));
+    };
+
+    document.getElementById('btn-back-from-my-rooms').onclick = () => {
+        myRoomsOverlay.style.display = 'none';
+        roomChoiceOverlay.style.display = 'flex';
+    };
+
     document.getElementById('btn-back-choice').onclick = () => {
         joinRoomOverlay.style.display = 'none';
         roomChoiceOverlay.style.display = 'flex';
@@ -435,7 +703,8 @@
         }
 
         if (data.type === "register_res") {
-            alert(data.msg); 
+            alert(data.msg);
+            if (data.success !== false) switchTab('login');
         } 
         else if (data.type === "login_res") {
             if (data.success) {
@@ -512,6 +781,54 @@
                 inputInviteCode.value = '';
             }
         }
+        else if (data.type === "get_my_rooms_res") {
+            myRoomsLoading.style.display = 'none';
+            if (!data.success) {
+                myRoomsList.innerHTML = `<p class="flow-hint" style="color:#ff3b30;">${escapeHtml(data.msg || '加载失败')}</p>`;
+                return;
+            }
+            if (!data.rooms || data.rooms.length === 0) {
+                myRoomsList.innerHTML = '<p class="flow-hint">暂无历史房间记录</p>';
+                return;
+            }
+            // 统计重名，给重名项加 (1)(2) 后缀
+            const nameCount = {};
+            const nameIndex = {};
+            data.rooms.forEach(r => { nameCount[r.room_name] = (nameCount[r.room_name] || 0) + 1; });
+            data.rooms.forEach(room => {
+                let displayName = room.room_name;
+                if (nameCount[room.room_name] > 1) {
+                    nameIndex[room.room_name] = (nameIndex[room.room_name] || 0) + 1;
+                    displayName = `${room.room_name}(${nameIndex[room.room_name]})`;
+                }
+                const card = document.createElement('div');
+                card.className = 'room-card';
+                const joinedDate  = room.joined_at  ? new Date(room.joined_at  * 1000).toLocaleDateString('zh-CN') : '未知';
+                const createdDate = room.created_at && room.created_at > 0
+                    ? new Date(room.created_at * 1000).toLocaleDateString('zh-CN') : '未知';
+                card.innerHTML = `
+                    <div class="room-card-name">${escapeHtml(displayName)}</div>
+                    <div class="room-card-meta">
+                        <span>创建者: ${escapeHtml(room.created_by || '未知')}</span>
+                        <span>创建于: ${createdDate}</span>
+                        <span>你加入于: ${joinedDate}</span>
+                    </div>`;
+                card.onclick = () => {
+                    myRoomsOverlay.style.display = 'none';
+                    currentRoom = { doc_id: room.doc_id, room_name: room.room_name };
+                    localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+                    statusSpan.innerText = "进入房间中 🟡";
+                    docDisplay.innerText = `📄 ${room.room_name || room.doc_id}`;
+                    ws.send(JSON.stringify({ type: "rejoin_room", doc_id: room.doc_id, requested_site_id: mySiteId || 0 }));
+                };
+                myRoomsList.appendChild(card);
+            });
+        }
+        else if (data.type === "rejoin_room_res") {
+            // 仅在失败时发送
+            alert(data.msg || '重新加入房间失败');
+            myRoomsOverlay.style.display = 'flex';
+        }
         else if (data.type === "rename_room_res") {
             if (data.success) {
                 currentRoom.room_name = data.room_name;
@@ -522,6 +839,26 @@
                 alert(data.msg);
             }
         }
+        else if (data.type === "get_room_members_res") {
+            const list = document.getElementById('members-list');
+            if (!data.success || !data.members || data.members.length === 0) {
+                list.innerHTML = '<div class="member-item" style="color:#8a8a9a;">暂无成员记录</div>';
+            } else {
+                const statusOrder = { in_room: 0, online: 1, offline: 2 };
+                const statusLabel = { in_room: '在本房间', online: '在线', offline: '离线' };
+                const statusClass = { in_room: 'in-room', online: 'online', offline: 'offline' };
+                const owner = data.members.find(m => m.is_owner);
+                const others = data.members.filter(m => !m.is_owner)
+                    .sort((a, b) => (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3));
+                const sorted = owner ? [owner, ...others] : others;
+                list.innerHTML = sorted.map(m => `
+                    <div class="member-item">
+                        <span class="member-dot ${statusClass[m.status] || 'offline'}"></span>
+                        <span>${escapeHtml(m.username)}${m.is_owner ? ' <span class="member-owner-tag">创建者</span>' : ''}</span>
+                        <span class="member-status-label">${statusLabel[m.status] || '离线'}</span>
+                    </div>`).join('');
+            }
+        }
         else if (data.type === "init") {
             mySiteId = data.site_id;
             localStorage.setItem('mySiteId', mySiteId);
@@ -530,12 +867,13 @@
                 currentRoom.room_name = data.room_name;
                 localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
             }
-            statusSpan.innerText = "已进入房间 🟢"; statusSpan.style.color = "green";
+            statusSpan.innerText = "已进入房间 🟢"; statusSpan.classList.remove('waiting'); statusSpan.classList.add('online');
             if (currentRoom) docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
             siteDisplay.innerText = `👤 ${myUsername} (Site: ${mySiteId})`;
-            btnGenInvite.style.display = 'inline-block';
-            btnRenameRoom.style.display = 'inline-block';
-            document.getElementById('btn-leave-room').style.display = 'inline-block';
+            btnGenInvite.style.display = 'inline-flex';
+            btnRenameRoom.style.display = 'inline-flex';
+            document.getElementById('btn-leave-room').style.display = 'inline-flex';
+            document.getElementById('btn-members').style.display = 'inline-flex';
         } else if (data.type === "presence") {
             addLog(`⚡️ [房间广播] ${data.username || data.site_id} 进入了文档`);
         } else if (data.type === "cursor") {
@@ -582,6 +920,32 @@
             isApplyingRemoteChange = false;
         }
     };
+
+    // 成员面板
+    const btnMembers = document.getElementById('btn-members');
+    const membersPanel = document.getElementById('members-panel');
+    const membersList = document.getElementById('members-list');
+
+    btnMembers.onclick = (e) => {
+        e.stopPropagation();
+        const isOpen = membersPanel.classList.contains('open');
+        if (isOpen) {
+            membersPanel.classList.remove('open');
+        } else {
+            const rect = btnMembers.getBoundingClientRect();
+            membersPanel.style.top = (rect.bottom + 6) + 'px';
+            membersPanel.style.left = rect.left + 'px';
+            membersList.innerHTML = '<div class="member-item" style="color:#8a8a9a;">加载中...</div>';
+            membersPanel.classList.add('open');
+            ws.send(JSON.stringify({ type: "get_room_members" }));
+        }
+    };
+
+    document.addEventListener('click', (e) => {
+        if (!membersPanel.contains(e.target) && e.target !== btnMembers) {
+            membersPanel.classList.remove('open');
+        }
+    });
 
     quill.on('selection-change', (range, oldRange, source) => {
         if (range && mySiteId) {
