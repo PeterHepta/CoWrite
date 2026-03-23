@@ -45,7 +45,7 @@
             flex: 1; font-size: 16px; background: white;
             border: none !important; border-radius: 0 !important;
         }
-        /* 图形画布，绝对覆盖在编辑器上 */
+        
         #shape-canvas {
             position: absolute; top: 0; left: 0;
             width: 100%; height: 100%;
@@ -823,10 +823,6 @@ function setShapeHint(msg) {
     shapeHint.innerText = msg;
 }
 
-// canvas pointer-events 管理：
-// - 放置模式 / 选中状态 / 拖动缩放中：开启
-// - 其他：关闭，让点击穿透到 Quill 编辑器
-// 悬停检测改为在 document 层做，悬停图形时临时开启
 function enableCanvas()  { canvas.style.pointerEvents = 'all'; }
 function disableCanvas() { canvas.style.pointerEvents = 'none'; }
 // 初始关闭
@@ -1374,6 +1370,44 @@ ws.onmessage = (event) => {
         document.getElementById('btn-leave-room').style.display = 'inline-flex';
         document.getElementById('btn-members').style.display = 'inline-flex';
         resizeCanvas();
+    }
+    else if (data.type === "history_batch") {
+        isApplyingRemoteChange = true;
+        // 先构建完整 docState，排序一次
+        for (const ev of data.events) {
+            if (ev.type === "insert") {
+                docState.push({ id: ev.id, char: ev.char, attributes: ev.attributes || {} });
+            } else if (ev.type === "delete") {
+                const idx = docState.findIndex(item => item.id === ev.id);
+                if (idx !== -1) docState.splice(idx, 1);
+            } else if (ev.type === "format") {
+                const item = docState.find(item => item.id === ev.id);
+                if (item) {
+                    if (ev.value === null || ev.value === false) delete item.attributes[ev.key];
+                    else item.attributes[ev.key] = ev.value;
+                }
+            } else if (ev.type === "shape_add" || ev.type === "shape_move" || ev.type === "shape_delete") {
+                applyRemoteShape(ev);
+            }
+        }
+        docState.sort((a, b) => a.id.localeCompare(b.id));
+        // 用 setContents 一次性重建 Quill 内容
+        const ops = [];
+        for (const item of docState) {
+            if (typeof item.char === 'string') {
+                if (item.char.length > 0) {
+                    const op = { insert: item.char };
+                    if (Object.keys(item.attributes).length > 0) op.attributes = item.attributes;
+                    ops.push(op);
+                }
+            } else {
+                const op = { insert: item.char };
+                if (Object.keys(item.attributes).length > 0) op.attributes = item.attributes;
+                ops.push(op);
+            }
+        }
+        if (ops.length > 0) quill.setContents({ ops }, 'silent');
+        isApplyingRemoteChange = false;
     }
     else if (data.type === "presence") {
         addLog(`⚡️ [房间广播] ${data.username || data.site_id} 进入了文档`);
