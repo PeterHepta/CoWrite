@@ -6,9 +6,28 @@
     <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
     <link href="https://unpkg.com/quill-emoji/dist/quill-emoji.css" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f5f5f7; margin: 0; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap');
+        :root {
+            --matcha-bg: #f0f4ee;
+            --matcha-surface: #f7f9f5;
+            --matcha-card: #ffffff;
+            --matcha-border: #dde8d8;
+            --matcha-border-light: #e8f0e4;
+            --matcha-accent: #5a7a4a;
+            --matcha-accent-hover: #4a6a3a;
+            --matcha-accent-light: #eaf2e5;
+            --matcha-text: #2c3a28;
+            --matcha-text-secondary: #6b7f64;
+            --matcha-text-muted: #9aaa94;
+            --matcha-green: #4a8c5c;
+            --matcha-green-light: #e4f2e8;
+            --matcha-yellow: #8a7a2a;
+            --matcha-yellow-light: #f5f0dc;
+        }
+        body { font-family: 'Inter', 'Noto Serif SC', 'Source Han Serif SC', 'Source Han Serif CN', serif; padding: 20px; background: var(--matcha-bg); margin: 0; color: var(--matcha-text); }
         .main-container { display: flex; flex-direction: column; height: 92vh; max-width: 1000px; margin: 0 auto; gap: 10px; }
-        .panel { background: white; border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.1); }
+        .panel { background: var(--matcha-card); border-radius: 8px; box-shadow: 0 1px 4px rgba(60,80,50,0.08); }
         .status-header {
             display: flex; align-items: stretch; gap: 0;
             padding: 0; overflow: visible;
@@ -20,30 +39,30 @@
             padding: 10px 16px;
         }
         .status-section + .status-section {
-            border-left: 1px solid #eef0f3;
+            border-left: 1px solid var(--matcha-border-light);
         }
         .status-section-brand { min-width: 90px; }
         .status-section-brand .brand-name {
-            font-size: 15px; font-weight: 700; color: #1a1a2e; letter-spacing: -0.2px;
+            font-size: 15px; font-weight: 700; color: var(--matcha-text); letter-spacing: -0.2px;
         }
         .status-section-doc { flex: 1; }
         .status-section-user { gap: 6px; }
         .status-pill {
             display: inline-flex; align-items: center; gap: 4px;
-            background: #f2f2f7; border-radius: 20px;
-            padding: 3px 10px; font-size: 12px; color: #3a3a4a; white-space: nowrap;
+            background: var(--matcha-surface); border-radius: 20px;
+            padding: 3px 10px; font-size: 12px; color: var(--matcha-text-secondary); white-space: nowrap;
         }
-        .status-pill.online { background: #e8f8ee; color: #1a7a3a; }
-        .status-pill.waiting { background: #fff8e6; color: #996600; }
+        .status-pill.online { background: var(--matcha-green-light); color: var(--matcha-green); }
+        .status-pill.waiting { background: var(--matcha-yellow-light); color: var(--matcha-yellow); }
 
         /* 编辑器+图形层容器 */
         #editor-wrap {
             flex: 1; position: relative; display: flex; flex-direction: column;
-            border: 1px solid #ccc; border-radius: 0 0 8px 8px; background: white;
+            border: 1px solid var(--matcha-border); border-radius: 0 0 8px 8px; background: var(--matcha-card);
             overflow: hidden;
         }
         #editor-container {
-            flex: 1; font-size: 16px; background: white;
+            flex: 1; font-size: 16px; background: var(--matcha-card);
             border: none !important; border-radius: 0 !important;
             overflow: hidden;
         }
@@ -60,25 +79,25 @@
         #shape-toolbar {
             display: flex; align-items: center; gap: 6px;
             padding: 6px 12px;
-            background: #fafafa;
-            border-bottom: 1px solid #e8e8f0;
+            background: var(--matcha-surface);
+            border-bottom: 1px solid var(--matcha-border-light);
             flex-shrink: 0;
         }
         #shape-toolbar .stb-label {
-            font-size: 12px; color: #8a8a9a; white-space: nowrap;
+            font-size: 12px; color: var(--matcha-text-muted); white-space: nowrap;
         }
         .shape-btn {
             width: 32px; height: 32px;
-            border: 1.5px solid #d0d0d8; border-radius: 6px;
-            background: white; cursor: pointer;
+            border: 1.5px solid var(--matcha-border); border-radius: 6px;
+            background: var(--matcha-card); cursor: pointer;
             display: flex; align-items: center; justify-content: center;
             transition: border-color .15s, background .15s;
             padding: 0; flex-shrink: 0;
         }
-        .shape-btn:hover { border-color: #007aff; background: #f0f6ff; }
-        .shape-btn.active { border-color: #007aff; background: #e0f0ff; }
+        .shape-btn:hover { border-color: var(--matcha-accent); background: var(--matcha-accent-light); }
+        .shape-btn.active { border-color: var(--matcha-accent); background: var(--matcha-accent-light); }
         .shape-btn svg { width: 18px; height: 18px; }
-        .stb-sep { width: 1px; height: 20px; background: #e8e8f0; margin: 0 2px; }
+        .stb-sep { width: 1px; height: 20px; background: var(--matcha-border-light); margin: 0 2px; }
 
         /* 图形 DOM 元素：放在 editor-wrap 内，绝对定位 */
         .shape-el {
@@ -90,13 +109,13 @@
             box-sizing: border-box;
             pointer-events: all;
         }
-        .shape-el.selected { outline: 2px dashed #007aff; outline-offset: 1px; }
+        .shape-el.selected { outline: 2px dashed var(--matcha-accent); outline-offset: 1px; }
         .shape-el canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
         /* 缩放把手 */
         .shape-handle {
             position: absolute;
             width: 10px; height: 10px;
-            background: white; border: 2px solid #007aff;
+            background: white; border: 2px solid var(--matcha-accent);
             border-radius: 2px;
             cursor: nwse-resize; z-index: 20;
             pointer-events: all;
@@ -108,14 +127,16 @@
         .shape-handle.bl { bottom: -5px; left: -5px; cursor: nesw-resize; }
         .shape-handle.br { bottom: -5px; right: -5px; cursor: nwse-resize; }
 
-        .ql-toolbar.ql-snow { border-radius: 8px 8px 0 0; border: 1px solid #ccc; background: #fafafa; border-bottom: none; }
+        .ql-toolbar.ql-snow { border-radius: 8px 8px 0 0; border: 1px solid var(--matcha-border); background: var(--matcha-surface); border-bottom: none; }
         .ql-toolbar.ql-snow .ql-formats { margin-right: 12px; vertical-align: middle; }
-        #log { background: #2d2d2d; color: #a9dc76; padding: 10px; height: 80px; overflow-y: auto; font-family: monospace; border-radius: 4px; font-size: 11px; margin-top: 5px; }
-        .log-own { color: #fc9867; }
+        .ql-toolbar.ql-snow button, .ql-toolbar.ql-snow .ql-picker { font-family: 'Inter', 'Noto Serif SC', serif; }
+        .ql-editor { font-family: 'Inter', 'Noto Serif SC', 'Source Han Serif SC', 'Source Han Serif CN', serif !important; font-size: 16px; }
+        .ql-editor.ql-blank::before { font-family: 'Inter', 'Noto Serif SC', serif; font-style: normal; color: var(--matcha-text-muted); }
+        #log { display: none; }
 
         #auth-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #f0f4f8;
+            background: var(--matcha-bg);
             display: flex; justify-content: center; align-items: center; z-index: 9999;
         }
         .auth-page {
@@ -124,61 +145,61 @@
         }
         .auth-logo { margin-bottom: 32px; text-align: center; }
         .auth-logo .logo-icon {
-            width: 52px; height: 52px; background: #007aff; border-radius: 14px;
+            width: 52px; height: 52px; background: var(--matcha-accent); border-radius: 14px;
             display: flex; align-items: center; justify-content: center;
             margin: 0 auto 12px auto;
-            box-shadow: 0 4px 16px rgba(0,122,255,0.25);
+            box-shadow: 0 4px 16px rgba(90,122,74,0.3);
         }
         .auth-logo .logo-icon svg { width: 28px; height: 28px; fill: white; }
-        .auth-logo h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin: 0 0 4px 0; letter-spacing: -0.3px; }
-        .auth-logo p { font-size: 13px; color: #8a8a9a; margin: 0; }
+        .auth-logo h1 { font-size: 22px; font-weight: 700; color: var(--matcha-text); margin: 0 0 4px 0; letter-spacing: -0.3px; }
+        .auth-logo p { font-size: 13px; color: var(--matcha-text-muted); margin: 0; }
         .auth-card {
-            background: white; border-radius: 16px; box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+            background: var(--matcha-card); border-radius: 16px; box-shadow: 0 2px 20px rgba(60,80,50,0.1);
             width: 100%; overflow: hidden;
         }
-        .auth-tabs { display: flex; border-bottom: 1px solid #f0f0f5; }
+        .auth-tabs { display: flex; border-bottom: 1px solid var(--matcha-border-light); }
         .auth-tab {
             flex: 1; padding: 16px; text-align: center; font-size: 14px; font-weight: 600;
-            color: #8a8a9a; cursor: pointer; border: none; background: none;
+            color: var(--matcha-text-muted); cursor: pointer; border: none; background: none;
             border-bottom: 2px solid transparent; margin-bottom: -1px;
             transition: color 0.2s, border-color 0.2s;
         }
-        .auth-tab.active { color: #007aff; border-bottom-color: #007aff; }
+        .auth-tab.active { color: var(--matcha-accent); border-bottom-color: var(--matcha-accent); }
         .auth-form { padding: 28px; display: flex; flex-direction: column; gap: 14px; }
         .auth-form input {
-            padding: 13px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
-            font-size: 15px; outline: none; background: #fafafe; transition: border-color 0.2s, background 0.2s;
-            color: #1a1a2e;
+            padding: 13px 14px; border: 1.5px solid var(--matcha-border); border-radius: 10px;
+            font-size: 15px; outline: none; background: var(--matcha-surface); transition: border-color 0.2s, background 0.2s;
+            color: var(--matcha-text); font-family: inherit;
         }
-        .auth-form input:focus { border-color: #007aff; background: white; }
-        .auth-form input::placeholder { color: #b0b0c0; }
+        .auth-form input:focus { border-color: var(--matcha-accent); background: white; }
+        .auth-form input::placeholder { color: var(--matcha-text-muted); }
         .auth-submit {
             padding: 14px; border: none; border-radius: 10px; font-size: 15px;
             cursor: pointer; font-weight: 600; transition: opacity 0.2s, transform 0.15s;
-            background: #007aff; color: white; margin-top: 4px;
+            background: var(--matcha-accent); color: white; margin-top: 4px; font-family: inherit;
         }
         .auth-submit:hover { opacity: 0.9; transform: translateY(-1px); }
         .auth-submit:active { transform: translateY(0); }
 
         #btn-logout {
-            background: none; color: #ff3b30; border: 1px solid #ff3b30; border-radius: 6px;
-            padding: 4px 10px; font-size: 12px; cursor: pointer; display: none;
+            background: none; color: #c0483a; border: 1px solid #c0483a; border-radius: 6px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; display: none; font-family: inherit;
         }
-        #btn-logout:hover { background: #ff3b30; color: white; }
+        #btn-logout:hover { background: #c0483a; color: white; }
         .action-btn {
-            background: none; border: 1px solid #e0e0e8; border-radius: 6px;
-            padding: 4px 10px; font-size: 12px; cursor: pointer; color: #3a3a4a; white-space: nowrap;
-            display: none; align-items: center; gap: 4px;
+            background: none; border: 1px solid var(--matcha-border); border-radius: 6px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--matcha-text-secondary); white-space: nowrap;
+            display: none; align-items: center; gap: 4px; font-family: inherit;
         }
-        .action-btn:hover { background: #f2f2f7; }
-        .action-btn.orange { border-color: #ff9f0a; color: #ff9f0a; }
-        .action-btn.orange:hover { background: #ff9f0a; color: white; }
-        .action-btn.blue { border-color: #007aff; color: #007aff; }
-        .action-btn.blue:hover { background: #007aff; color: white; }
+        .action-btn:hover { background: var(--matcha-accent-light); }
+        .action-btn.orange { border-color: #b08a2a; color: #b08a2a; }
+        .action-btn.orange:hover { background: #b08a2a; color: white; }
+        .action-btn.blue { border-color: var(--matcha-accent); color: var(--matcha-accent); }
+        .action-btn.blue:hover { background: var(--matcha-accent); color: white; }
 
         .flow-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: #f0f4f8;
+            background: var(--matcha-bg);
             display: none; justify-content: center; align-items: center; z-index: 9999;
         }
         .flow-page { width: 380px; display: flex; flex-direction: column; align-items: center; }
@@ -187,97 +208,97 @@
             width: 48px; height: 48px; border-radius: 13px;
             display: flex; align-items: center; justify-content: center;
             margin: 0 auto 10px auto; font-size: 22px;
-            box-shadow: 0 4px 14px rgba(0,0,0,0.12);
+            box-shadow: 0 4px 14px rgba(60,80,50,0.12);
         }
-        .flow-header h2 { font-size: 20px; font-weight: 700; color: #1a1a2e; margin: 0 0 4px 0; letter-spacing: -0.3px; }
-        .flow-header p { font-size: 13px; color: #8a8a9a; margin: 0; }
+        .flow-header h2 { font-size: 20px; font-weight: 700; color: var(--matcha-text); margin: 0 0 4px 0; letter-spacing: -0.3px; }
+        .flow-header p { font-size: 13px; color: var(--matcha-text-muted); margin: 0; }
         .flow-card {
-            background: white; border-radius: 16px; box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+            background: var(--matcha-card); border-radius: 16px; box-shadow: 0 2px 20px rgba(60,80,50,0.1);
             width: 100%; padding: 24px; display: flex; flex-direction: column; gap: 10px;
         }
         .flow-card input {
-            padding: 13px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
-            font-size: 15px; outline: none; background: #fafafe; transition: border-color 0.2s, background 0.2s;
-            color: #1a1a2e; width: 100%; box-sizing: border-box;
+            padding: 13px 14px; border: 1.5px solid var(--matcha-border); border-radius: 10px;
+            font-size: 15px; outline: none; background: var(--matcha-surface); transition: border-color 0.2s, background 0.2s;
+            color: var(--matcha-text); width: 100%; box-sizing: border-box; font-family: inherit;
         }
-        .flow-card input:focus { border-color: #007aff; background: white; }
-        .flow-card input::placeholder { color: #b0b0c0; }
+        .flow-card input:focus { border-color: var(--matcha-accent); background: white; }
+        .flow-card input::placeholder { color: var(--matcha-text-muted); }
         .flow-btn {
             padding: 13px 14px; border: none; border-radius: 10px; font-size: 15px;
             cursor: pointer; font-weight: 600; transition: opacity 0.2s, transform 0.15s;
-            width: 100%; text-align: center;
+            width: 100%; text-align: center; font-family: inherit;
         }
         .flow-btn:hover { opacity: 0.88; transform: translateY(-1px); }
         .flow-btn:active { transform: translateY(0); }
-        .flow-btn-primary { background: #007aff; color: white; }
-        .flow-btn-green { background: #34c759; color: white; }
-        .flow-btn-secondary { background: #f2f2f7; color: #3a3a4a; }
-        .flow-btn-secondary:hover { background: #e8e8f0; opacity: 1; }
-        .flow-divider { height: 1px; background: #f0f0f5; margin: 4px 0; }
-        .flow-hint { font-size: 13px; color: #8a8a9a; text-align: center; margin: 0; }
+        .flow-btn-primary { background: var(--matcha-accent); color: white; }
+        .flow-btn-green { background: var(--matcha-green); color: white; }
+        .flow-btn-secondary { background: var(--matcha-surface); color: var(--matcha-text-secondary); border: 1px solid var(--matcha-border); }
+        .flow-btn-secondary:hover { background: var(--matcha-accent-light); opacity: 1; }
+        .flow-divider { height: 1px; background: var(--matcha-border-light); margin: 4px 0; }
+        .flow-hint { font-size: 13px; color: var(--matcha-text-muted); text-align: center; margin: 0; }
 
         #invite-code-display, #gen-invite-code-display {
-            font-size: 30px; letter-spacing: 8px; color: #007aff;
-            font-family: monospace; font-weight: 700;
-            background: #f0f6ff; padding: 14px 20px; border-radius: 12px;
-            text-align: center; border: 1.5px solid #d0e8ff;
+            font-size: 30px; letter-spacing: 8px; color: var(--matcha-accent);
+            font-family: 'SF Mono', 'Fira Code', monospace; font-weight: 700;
+            background: var(--matcha-accent-light); padding: 14px 20px; border-radius: 12px;
+            text-align: center; border: 1.5px solid var(--matcha-border);
         }
         #input-invite-code {
-            font-size: 22px; font-family: monospace; letter-spacing: 6px;
+            font-size: 22px; font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: 6px;
             text-align: center; text-transform: uppercase;
         }
         #timed-options select {
-            width: 100%; padding: 12px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
-            font-size: 14px; outline: none; background: #fafafe; color: #1a1a2e;
-            appearance: none; cursor: pointer;
+            width: 100%; padding: 12px 14px; border: 1.5px solid var(--matcha-border); border-radius: 10px;
+            font-size: 14px; outline: none; background: var(--matcha-surface); color: var(--matcha-text);
+            appearance: none; cursor: pointer; font-family: inherit;
         }
         #timed-options { display: flex; flex-direction: column; gap: 10px; }
 
         #ql-custom-placeholder {
             position: absolute; top: 0; left: 0;
             padding: 12px 15px;
-            color: #aaa; font-size: 16px;
+            color: var(--matcha-text-muted); font-size: 16px;
             pointer-events: none; user-select: none;
         }
         .room-card {
             display: flex; flex-direction: column; gap: 4px;
-            padding: 14px 16px; border: 1.5px solid #e8e8f0; border-radius: 10px;
-            cursor: pointer; background: #fafabe;
+            padding: 14px 16px; border: 1.5px solid var(--matcha-border); border-radius: 10px;
+            cursor: pointer; background: var(--matcha-surface);
             transition: border-color .18s, background .18s;
         }
-        .room-card:hover { border-color: #007aff; background: #f0f6ff; }
-        .room-card-name { font-size: 15px; font-weight: 600; color: #1a1a2e; }
-        .room-card-meta { font-size: 12px; color: #8a8a9a; display: flex; gap: 12px; flex-wrap: wrap; }
+        .room-card:hover { border-color: var(--matcha-accent); background: var(--matcha-accent-light); }
+        .room-card-name { font-size: 15px; font-weight: 600; color: var(--matcha-text); }
+        .room-card-meta { font-size: 12px; color: var(--matcha-text-muted); display: flex; gap: 12px; flex-wrap: wrap; }
 
         #members-panel {
             position: fixed; top: auto; left: auto; margin-top: 4px;
-            background: white; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.13);
-            border: 1px solid #e8e8f0; min-width: 220px; z-index: 1000;
+            background: var(--matcha-card); border-radius: 10px; box-shadow: 0 4px 20px rgba(60,80,50,0.13);
+            border: 1px solid var(--matcha-border); min-width: 220px; z-index: 1000;
             display: none; flex-direction: column; overflow: hidden;
         }
         #members-panel.open { display: flex; }
         .members-panel-header {
             padding: 10px 14px 8px; font-size: 12px; font-weight: 600;
-            color: #8a8a9a; border-bottom: 1px solid #f0f0f5; background: #fafafe;
+            color: var(--matcha-text-muted); border-bottom: 1px solid var(--matcha-border-light); background: var(--matcha-surface);
         }
         .members-list { max-height: 220px; overflow-y: auto; padding: 6px 0; }
         .member-item {
             display: flex; align-items: center; gap: 8px;
-            padding: 7px 14px; font-size: 13px; color: #1a1a2e;
+            padding: 7px 14px; font-size: 13px; color: var(--matcha-text);
         }
         .member-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .member-dot.in-room  { background: #34c759; }
-        .member-dot.online   { background: #007aff; }
-        .member-dot.offline  { background: #c7c7cc; }
-        .member-status-label { font-size: 11px; color: #8a8a9a; margin-left: auto; white-space: nowrap; }
+        .member-dot.in-room  { background: var(--matcha-green); }
+        .member-dot.online   { background: var(--matcha-accent); }
+        .member-dot.offline  { background: var(--matcha-text-muted); }
+        .member-status-label { font-size: 11px; color: var(--matcha-text-muted); margin-left: auto; white-space: nowrap; }
         .member-owner-tag {
-            font-size: 10px; color: #ff9f0a; border: 1px solid #ff9f0a;
+            font-size: 10px; color: #b08a2a; border: 1px solid #b08a2a;
             border-radius: 4px; padding: 0px 4px; vertical-align: middle; margin-left: 4px;
         }
         /* 图形工具提示 */
         #shape-hint {
             position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.6); color: white; font-size: 12px;
+            background: rgba(44,58,40,0.75); color: white; font-size: 12px;
             padding: 4px 12px; border-radius: 20px;
             pointer-events: none; z-index: 30;
             display: none; white-space: nowrap;
@@ -289,77 +310,165 @@
         }
         .save-dropdown-wrap.visible { display: inline-flex; }
         #btn-save-menu {
-            background: none; border: 1px solid #34c759; border-radius: 6px;
-            padding: 4px 10px; font-size: 12px; cursor: pointer; color: #34c759;
+            background: none; border: 1px solid var(--matcha-green); border-radius: 6px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; color: var(--matcha-green);
             white-space: nowrap; display: flex; align-items: center; gap: 4px;
-            transition: background .15s, color .15s;
+            transition: background .15s, color .15s; font-family: inherit;
         }
-        #btn-save-menu:hover { background: #34c759; color: white; }
+        #btn-save-menu:hover { background: var(--matcha-green); color: white; }
         .save-dropdown-menu {
             position: absolute; top: calc(100% + 6px); right: 0;
-            background: white; border-radius: 10px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.13);
-            border: 1px solid #e8e8f0; min-width: 140px; z-index: 1000;
+            background: var(--matcha-card); border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(60,80,50,0.13);
+            border: 1px solid var(--matcha-border); min-width: 140px; z-index: 1000;
             display: none; flex-direction: column; overflow: hidden;
         }
         .save-dropdown-menu.open { display: flex; }
         .save-menu-item {
-            padding: 10px 16px; font-size: 13px; color: #1a1a2e; cursor: pointer;
+            padding: 10px 16px; font-size: 13px; color: var(--matcha-text); cursor: pointer;
             display: flex; align-items: center; gap: 8px; white-space: nowrap;
             transition: background .12s;
         }
-        .save-menu-item:hover { background: #f2f2f7; }
-        .save-menu-item + .save-menu-item { border-top: 1px solid #f0f0f5; }
+        .save-menu-item:hover { background: var(--matcha-accent-light); }
+        .save-menu-item + .save-menu-item { border-top: 1px solid var(--matcha-border-light); }
 
         /* 读取存档弹窗 */
         #load-save-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.35); display: none;
+            background: rgba(44,58,40,0.3); display: none;
             justify-content: center; align-items: center; z-index: 9000;
         }
         #load-save-overlay.open { display: flex; }
         .load-save-modal {
-            background: white; border-radius: 16px;
-            box-shadow: 0 4px 30px rgba(0,0,0,0.18);
+            background: var(--matcha-card); border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(60,80,50,0.18);
             width: 440px; max-width: 94vw; max-height: 80vh;
             display: flex; flex-direction: column; overflow: hidden;
         }
         .load-save-header {
-            padding: 18px 20px 14px; border-bottom: 1px solid #f0f0f5;
+            padding: 18px 20px 14px; border-bottom: 1px solid var(--matcha-border-light);
             display: flex; align-items: center; justify-content: space-between;
         }
-        .load-save-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #1a1a2e; }
+        .load-save-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: var(--matcha-text); }
         #btn-close-load-save {
             background: none; border: none; font-size: 20px; cursor: pointer;
-            color: #8a8a9a; line-height: 1; padding: 0 4px;
+            color: var(--matcha-text-muted); line-height: 1; padding: 0 4px;
         }
-        #btn-close-load-save:hover { color: #1a1a2e; }
+        #btn-close-load-save:hover { color: var(--matcha-text); }
         .load-save-list {
             flex: 1; overflow-y: auto; padding: 10px 12px; display: flex;
             flex-direction: column; gap: 8px;
         }
         .save-slot-card {
-            padding: 12px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
-            cursor: pointer; background: #fafafe;
+            padding: 12px 14px; border: 1.5px solid var(--matcha-border); border-radius: 10px;
+            cursor: pointer; background: var(--matcha-surface);
             transition: border-color .15s, background .15s;
             display: flex; align-items: center; justify-content: space-between; gap: 8px;
         }
-        .save-slot-card:hover { border-color: #007aff; background: #f0f6ff; }
-        .save-slot-card.quick-save { border-color: #ff9f0a; background: #fff8ee; }
-        .save-slot-card.quick-save:hover { background: #fff0d0; }
+        .save-slot-card:hover { border-color: var(--matcha-accent); background: var(--matcha-accent-light); }
+        .save-slot-card.quick-save { border-color: #c09a30; background: var(--matcha-yellow-light); }
+        .save-slot-card.quick-save:hover { background: #ede8c8; }
         .save-slot-info { flex: 1; min-width: 0; }
-        .save-slot-name { font-size: 14px; font-weight: 600; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .save-slot-meta { font-size: 11px; color: #8a8a9a; margin-top: 2px; }
+        .save-slot-name { font-size: 14px; font-weight: 600; color: var(--matcha-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .save-slot-meta { font-size: 11px; color: var(--matcha-text-muted); margin-top: 2px; }
         .save-slot-del {
-            background: none; border: 1px solid #ff3b30; color: #ff3b30; border-radius: 5px;
+            background: none; border: 1px solid #c0483a; color: #c0483a; border-radius: 5px;
             font-size: 11px; padding: 3px 7px; cursor: pointer; flex-shrink: 0;
-            transition: background .12s, color .12s;
+            transition: background .12s, color .12s; font-family: inherit;
         }
-        .save-slot-del:hover { background: #ff3b30; color: white; }
-        .load-save-empty { padding: 28px; text-align: center; color: #8a8a9a; font-size: 13px; }
+        .save-slot-del:hover { background: #c0483a; color: white; }
+        .load-save-empty { padding: 28px; text-align: center; color: var(--matcha-text-muted); font-size: 13px; }
+
+        /* ── Toast 通知（右上角） ── */
+        #toast-container {
+            position: fixed; top: 16px; right: 16px;
+            display: flex; flex-direction: column; gap: 8px;
+            z-index: 99999; pointer-events: none;
+        }
+        .toast {
+            display: flex; align-items: flex-start; gap: 10px;
+            background: var(--matcha-card);
+            border: 1px solid var(--matcha-border);
+            border-left: 3px solid var(--matcha-accent);
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(44,58,40,0.13);
+            padding: 11px 14px;
+            min-width: 220px; max-width: 320px;
+            pointer-events: all;
+            animation: toast-in .22s ease;
+        }
+        .toast.toast-error { border-left-color: #c0483a; }
+        .toast.toast-warn  { border-left-color: #b08a2a; }
+        .toast.toast-info  { border-left-color: var(--matcha-accent); }
+        .toast.toast-success { border-left-color: var(--matcha-green); }
+        .toast-icon { font-size: 15px; line-height: 1.4; flex-shrink: 0; }
+        .toast-body { flex: 1; }
+        .toast-msg { font-size: 13px; color: var(--matcha-text); line-height: 1.5; }
+        .toast-close {
+            background: none; border: none; cursor: pointer; padding: 0;
+            color: var(--matcha-text-muted); font-size: 15px; line-height: 1;
+            flex-shrink: 0; margin-top: 1px;
+        }
+        .toast-close:hover { color: var(--matcha-text); }
+        .toast.toast-out { animation: toast-out .2s ease forwards; }
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateX(24px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateX(0); }
+            to   { opacity: 0; transform: translateX(24px); }
+        }
+
+        /* ── 自定义 confirm / prompt 弹窗 ── */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(44,58,40,0.28);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 99998;
+            animation: modal-bg-in .15s ease;
+        }
+        @keyframes modal-bg-in { from { opacity:0; } to { opacity:1; } }
+        .modal-box {
+            background: var(--matcha-card); border-radius: 14px;
+            box-shadow: 0 8px 32px rgba(44,58,40,0.18);
+            border: 1px solid var(--matcha-border);
+            width: 320px; max-width: 90vw;
+            padding: 24px 22px 18px;
+            display: flex; flex-direction: column; gap: 14px;
+            animation: modal-in .18s ease;
+        }
+        @keyframes modal-in {
+            from { opacity:0; transform: scale(.95) translateY(6px); }
+            to   { opacity:1; transform: scale(1) translateY(0); }
+        }
+        .modal-msg {
+            font-size: 14px; color: var(--matcha-text); line-height: 1.6; margin: 0;
+        }
+        .modal-input {
+            padding: 11px 13px; border: 1.5px solid var(--matcha-border); border-radius: 9px;
+            font-size: 14px; outline: none; background: var(--matcha-surface);
+            color: var(--matcha-text); font-family: inherit; width: 100%; box-sizing: border-box;
+            transition: border-color .18s;
+        }
+        .modal-input:focus { border-color: var(--matcha-accent); background: #fff; }
+        .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+        .modal-btn {
+            padding: 8px 18px; border: none; border-radius: 8px; font-size: 13px;
+            font-weight: 600; cursor: pointer; font-family: inherit;
+            transition: opacity .15s, transform .12s;
+        }
+        .modal-btn:hover { opacity: .88; transform: translateY(-1px); }
+        .modal-btn:active { transform: translateY(0); }
+        .modal-btn-cancel { background: var(--matcha-surface); color: var(--matcha-text-secondary); border: 1px solid var(--matcha-border); }
+        .modal-btn-cancel:hover { opacity:1; background: var(--matcha-accent-light); }
+        .modal-btn-ok { background: var(--matcha-accent); color: white; }
+        .modal-btn-ok.danger { background: #c0483a; }
     </style>
 </head>
 <body>
+
+<div id="toast-container"></div>
 
 <div id="auth-overlay">
     <div class="auth-page">
@@ -394,7 +503,7 @@
 <div id="room-choice-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eef6ff;">🏠</div>
+            <div class="flow-icon" style="background:#eaf2e5;">🏠</div>
             <h2>进入 CoWrite</h2>
             <p>创建或加入一个房间开始协作</p>
         </div>
@@ -411,7 +520,7 @@
 <div id="room-name-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eeffed;">✏️</div>
+            <div class="flow-icon" style="background:#eaf2e5;">✏️</div>
             <h2>创建新房间</h2>
             <p>给你的协作空间起个名字</p>
         </div>
@@ -426,7 +535,7 @@
 <div id="invite-type-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#fff8ee;">🔑</div>
+            <div class="flow-icon" style="background:#f5f0dc;">🔑</div>
             <h2>设置邀请码</h2>
             <p>选择邀请码的有效期类型</p>
         </div>
@@ -453,7 +562,7 @@
 <div id="room-created-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eeffed;">🎉</div>
+            <div class="flow-icon" style="background:#eaf2e5;">🎉</div>
             <h2>房间创建成功</h2>
             <p id="invite-type-hint">分享邀请码，邀请伙伴加入</p>
         </div>
@@ -470,7 +579,7 @@
 <div id="join-room-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eef6ff;">🔓</div>
+            <div class="flow-icon" style="background:#eaf2e5;">🔓</div>
             <h2>加入房间</h2>
             <p>输入 6 位邀请码</p>
         </div>
@@ -486,7 +595,7 @@
 <div id="my-rooms-overlay" class="flow-overlay">
     <div class="flow-page" style="width:480px; max-width:96vw;">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eef6ff;">🕘</div>
+            <div class="flow-icon" style="background:#eaf2e5;">🕘</div>
             <h2>我加入过的房间</h2>
             <p>点击任意房间直接进入</p>
         </div>
@@ -502,7 +611,7 @@
 <div id="gen-invite-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#fff8ee;">🔑</div>
+            <div class="flow-icon" style="background:#f5f0dc;">🔑</div>
             <h2>邀请码已生成</h2>
             <p id="gen-invite-type-hint">分享给需要加入的人</p>
         </div>
@@ -521,7 +630,7 @@
             <span class="brand-name">CoWrite ✨</span>
         </div>
         <div class="status-section status-section-doc">
-            <span id="doc-display" style="color:#007aff; font-weight:bold; font-size:13px;"></span>
+            <span id="doc-display" style="color:var(--matcha-accent); font-weight:bold; font-size:13px;"></span>
             <button id="btn-rename-room" title="修改房间名" class="action-btn blue" style="display:none;">✏️ 重命名</button>
             <button id="btn-gen-invite" class="action-btn orange" style="display:none;">🔑 邀请</button>
             <button id="btn-members" class="action-btn blue" style="display:none;">👥 成员</button>
@@ -548,7 +657,7 @@
     </div>
 
     <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
-        <div id="quill-toolbar" style="border-radius:8px 8px 0 0; border:1px solid #ccc; background:#fafafa; border-bottom:none;">
+        <div id="quill-toolbar" style="border-radius:8px 8px 0 0; border:1px solid var(--matcha-border); background:var(--matcha-surface); border-bottom:none;">
             <span class="ql-formats">
                 <select class="ql-header"><option value="1"></option><option value="2"></option><option value=""></option></select>
             </span>
@@ -597,7 +706,7 @@
                     <line x1="4" y1="4" x2="16" y2="16"/><line x1="16" y1="4" x2="4" y2="16"/>
                 </svg>
             </button>
-            <span id="shape-mode-hint" style="font-size:12px;color:#007aff;display:none;"></span>
+            <span id="shape-mode-hint" style="font-size:12px;color:var(--matcha-accent);display:none;"></span>
         </div>
         <!-- 编辑器+画布 -->
         <div id="editor-wrap">
@@ -697,8 +806,11 @@ const colorPalette = ['#f56223', '#ffc107', '#00a8ff', '#00b894', '#9b59b6', '#e
 function getUserColor(siteId) { return colorPalette[siteId % colorPalette.length]; }
 
 function addLog(text, isOwn = false) {
-    const div = document.createElement('div'); div.innerText = text; if(isOwn) div.classList.add('log-own');
-    logPanel.appendChild(div); logPanel.scrollTop = logPanel.scrollHeight;
+    let type = 'info';
+    if (/^✅/.test(text) || /^🎉/.test(text) || /^💾/.test(text) || /^📂/.test(text)) type = 'success';
+    else if (/^⚠️/.test(text) || /^❌/.test(text)) type = 'error';
+    else if (isOwn) type = 'success';
+    showToast(text, type, 4000);
 }
 
 function generatePosBetween(left, right) {
@@ -724,30 +836,30 @@ ws.onopen = () => {
     if (myUsername && myPassword) {
         authOverlay.style.display = 'none';
         statusSpan.innerText = "自动登录中 🟡";
-        addLog("🔗 检测到历史登录状态，正在免密验证...");
+        // 静默自动登录，不弹通知
         ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
     } else {
         statusSpan.innerText = "已连网，请登录 🟡";
-        addLog("🔗 已连接到服务器，等待身份验证...");
+        // 静默等待登录
     }
 };
 
 document.getElementById('btn-register').onclick = () => {
     myUsername = document.getElementById('input-username-reg').value;
     myPassword = document.getElementById('input-password-reg').value;
-    if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
+    if(!myUsername || !myPassword) return showToast('用户名和密码不能为空！', 'warn');
     ws.send(JSON.stringify({ type: "register", username: myUsername, password: myPassword }));
 };
 
 document.getElementById('btn-login').onclick = () => {
     myUsername = document.getElementById('input-username').value;
     myPassword = document.getElementById('input-password').value;
-    if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
+    if(!myUsername || !myPassword) return showToast('用户名和密码不能为空！', 'warn');
     ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
 };
 
 btnLogout.onclick = () => {
-    if(confirm("确定要退出登录吗？")) { localStorage.clear(); location.reload(); }
+    showConfirm('确定要退出登录吗？', () => { localStorage.clear(); location.reload(); }, null, false);
 };
 
 document.getElementById('btn-leave-room').onclick = () => {
@@ -767,10 +879,11 @@ const btnRenameRoom = document.getElementById('btn-rename-room');
 
 btnRenameRoom.onclick = () => {
     const current = currentRoom ? (currentRoom.room_name || '') : '';
-    const newName = prompt('请输入新的房间名称：', current);
-    if (newName === null) return;
-    if (!newName.trim()) return alert('房间名称不能为空！');
-    ws.send(JSON.stringify({ type: "rename_room", room_name: newName.trim() }));
+    showPrompt('请输入新的房间名称：', current, (newName) => {
+        if (newName === null || newName === undefined) return;
+        if (!newName.trim()) return showToast('房间名称不能为空！', 'warn');
+        ws.send(JSON.stringify({ type: "rename_room", room_name: newName.trim() }));
+    });
 };
 
 let isGenInviteMode = false;
@@ -783,7 +896,7 @@ document.getElementById('btn-create-room').onclick = () => {
 
 document.getElementById('btn-confirm-room-name').onclick = () => {
     const name = document.getElementById('input-room-name').value.trim();
-    if (!name) return alert('请输入房间名称！');
+    if (!name) return showToast('请输入房间名称！', 'warn');
     roomNameOverlay.dataset.roomName = name;
     roomNameOverlay.style.display = 'none';
     isGenInviteMode = false;
@@ -846,7 +959,7 @@ document.getElementById('btn-go-back-login').onclick = () => {
 };
 
 document.getElementById('btn-copy-code').onclick = () => {
-    navigator.clipboard.writeText(inviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
+    navigator.clipboard.writeText(inviteCodeDisplay.innerText).then(() => showToast('邀请码已复制！', 'success'));
 };
 
 document.getElementById('btn-enter-room').onclick = () => {
@@ -857,7 +970,7 @@ document.getElementById('btn-enter-room').onclick = () => {
 };
 
 document.getElementById('btn-copy-gen-code').onclick = () => {
-    navigator.clipboard.writeText(genInviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
+    navigator.clipboard.writeText(genInviteCodeDisplay.innerText).then(() => showToast('邀请码已复制！', 'success'));
 };
 
 document.getElementById('btn-close-gen-invite').onclick = () => {
@@ -897,7 +1010,7 @@ document.getElementById('btn-back-choice').onclick = () => {
 
 document.getElementById('btn-join-with-code').onclick = () => {
     const code = inputInviteCode.value.trim().toUpperCase();
-    if (code.length !== 6) return alert('请输入 6 位邀请码！');
+    if (code.length !== 6) return showToast('请输入 6 位邀请码！', 'warn');
     ws.send(JSON.stringify({ type: "join_with_code", code: code }));
 };
 
@@ -1268,7 +1381,7 @@ function handleMessage(data) {
     }
 
     if (data.type === "register_res") {
-        alert(data.msg);
+        showToast(data.msg, data.success !== false ? 'success' : 'error');
         if (data.success !== false) switchTab('login');
     }
     else if (data.type === "login_res") {
@@ -1281,14 +1394,13 @@ function handleMessage(data) {
             addLog(`✅ 登录成功！欢迎回来，${myUsername}！`, true);
             if (currentRoom) {
                 statusSpan.innerText = "重新加入房间中 🟡";
-                addLog(`🔄 正在自动返回房间「${currentRoom.room_name || currentRoom.doc_id}」...`);
                 ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
             } else {
                 statusSpan.innerText = "已登录，选择房间 🟡";
                 roomChoiceOverlay.style.display = 'flex';
             }
         } else {
-            alert(data.msg);
+            showToast(data.msg, 'error');
             authOverlay.style.display = 'flex';
             localStorage.clear();
         }
@@ -1309,7 +1421,7 @@ function handleMessage(data) {
             roomCreatedOverlay.style.display = 'flex';
             addLog(`🎉 房间「${data.room_name}」已创建，邀请码: ${data.code}`, true);
         } else {
-            alert(data.msg);
+            showToast(data.msg, 'error');
         }
     }
     else if (data.type === "gen_invite_res") {
@@ -1324,7 +1436,7 @@ function handleMessage(data) {
             genInviteOverlay.style.display = 'flex';
             addLog(`🔑 新邀请码已生成: ${data.code}`, true);
         } else {
-            alert(data.msg || '生成邀请码失败');
+            showToast(data.msg || '生成邀请码失败', 'error');
         }
     }
     else if (data.type === "join_with_code_res") {
@@ -1336,7 +1448,7 @@ function handleMessage(data) {
             docDisplay.innerText = `📄 ${data.room_name || data.doc_id}`;
             ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
         } else {
-            alert(data.msg);
+            showToast(data.msg, 'error');
             inputInviteCode.value = '';
         }
     }
@@ -1383,7 +1495,7 @@ function handleMessage(data) {
         });
     }
     else if (data.type === "rejoin_room_res") {
-        alert(data.msg || '重新加入房间失败');
+        showToast(data.msg || '重新加入房间失败', 'error');
         myRoomsOverlay.style.display = 'flex';
     }
     else if (data.type === "rename_room_res") {
@@ -1393,7 +1505,7 @@ function handleMessage(data) {
             docDisplay.innerText = `📄 ${data.room_name}`;
             addLog(`✏️ 房间已重命名为「${data.room_name}」`, true);
         } else {
-            alert(data.msg);
+            showToast(data.msg, 'error');
         }
     }
     else if (data.type === "get_room_members_res") {
@@ -1550,7 +1662,7 @@ function handleMessage(data) {
         isApplyingRemoteChange = false;
     }
     else if (data.type === "presence") {
-        addLog(`⚡️ [房间广播] ${data.username || data.site_id} 进入了文档`);
+        showToast(`${data.username || ('用户' + data.site_id)} 进入了文档`, 'info', 2500);
     }
     else if (data.type === "cursor") {
         if (data.site_id === mySiteId) return;
@@ -1754,18 +1866,19 @@ document.getElementById('menu-save').onclick = () => {
 let pendingSaveAfterList = false;
 
 function doSaveWithPrompt() {
-    const input = prompt('请输入存档名称（留空则使用"默认存档"）：', '');
-    if (input === null) return;
-    const baseName = input.trim() || '默认存档';
-    const name = uniqueSaveName(baseName);
-    const snap = captureSnapshot();
-    ws.send(JSON.stringify({
-        type: "save_snapshot",
-        name,
-        doc_state: JSON.stringify(snap.docState),
-        shapes: JSON.stringify(snap.shapes)
-    }));
-};
+    showPrompt('请输入存档名称（留空则使用"默认存档"）：', '', (input) => {
+        if (input === null || input === undefined) return;
+        const baseName = input.trim() || '默认存档';
+        const name = uniqueSaveName(baseName);
+        const snap = captureSnapshot();
+        ws.send(JSON.stringify({
+            type: "save_snapshot",
+            name,
+            doc_state: JSON.stringify(snap.docState),
+            shapes: JSON.stringify(snap.shapes)
+        }));
+    });
+}
 
 document.getElementById('menu-quicksave').onclick = () => {
     closeSaveDropdown();
@@ -1812,14 +1925,16 @@ function openLoadModal(saves) {
 
         card.addEventListener('click', (e) => {
             if (e.target.classList.contains('save-slot-del')) return;
-            if (!confirm(`确认读取存档「${save.name}」？房间内所有人的内容都将被覆盖。`)) return;
-            ws.send(JSON.stringify({ type: "load_save", save_id: save.id }));
+            showConfirm(`确认读取存档「${save.name}」？房间内所有人的内容都将被覆盖。`, () => {
+                ws.send(JSON.stringify({ type: "load_save", save_id: save.id }));
+            }, null, true);
         });
 
         card.querySelector('.save-slot-del').onclick = (e) => {
             e.stopPropagation();
-            if (!confirm(`确认删除存档「${save.name}」？`)) return;
-            ws.send(JSON.stringify({ type: "delete_save", save_id: save.id }));
+            showConfirm(`确认删除存档「${save.name}」？`, () => {
+                ws.send(JSON.stringify({ type: "delete_save", save_id: save.id }));
+            }, null, true);
         };
 
         list.appendChild(card);
@@ -1847,6 +1962,67 @@ document.addEventListener('click', (e) => {
 
 function showSaveBtn() {
     document.getElementById('save-dropdown-wrap').classList.add('visible');
+}
+
+// ── 自定义通知/弹窗工具函数 ──
+function showToast(msg, type = 'info', duration = 3500) {
+    const icons = { info: 'ℹ️', success: '✅', warn: '⚠️', error: '❌' };
+    const container = document.getElementById('toast-container');
+    const el = document.createElement('div');
+    el.className = `toast toast-${type}`;
+    el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span>
+        <span class="toast-body"><span class="toast-msg">${msg}</span></span>
+        <button class="toast-close" onclick="dismissToast(this.closest('.toast'))">✕</button>`;
+    container.appendChild(el);
+    const timer = setTimeout(() => dismissToast(el), duration);
+    el._timer = timer;
+}
+function dismissToast(el) {
+    if (!el || el._dismissed) return;
+    el._dismissed = true;
+    clearTimeout(el._timer);
+    el.classList.add('toast-out');
+    el.addEventListener('animationend', () => el.remove(), { once: true });
+}
+
+function showConfirm(msg, onOk, onCancel, danger = false) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal-box">
+        <p class="modal-msg">${msg}</p>
+        <div class="modal-btns">
+            <button class="modal-btn modal-btn-cancel" id="_mc">取消</button>
+            <button class="modal-btn modal-btn-ok${danger ? ' danger' : ''}" id="_mo">确认</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const close = () => overlay.remove();
+    overlay.querySelector('#_mc').onclick = () => { close(); onCancel && onCancel(); };
+    overlay.querySelector('#_mo').onclick = () => { close(); onOk && onOk(); };
+    overlay.addEventListener('click', e => { if (e.target === overlay) { close(); onCancel && onCancel(); } });
+    setTimeout(() => overlay.querySelector('#_mo').focus(), 50);
+}
+
+function showPrompt(msg, defaultVal, onOk, onCancel) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `<div class="modal-box">
+        <p class="modal-msg">${msg}</p>
+        <input class="modal-input" id="_mp" type="text" value="${defaultVal || ''}">
+        <div class="modal-btns">
+            <button class="modal-btn modal-btn-cancel" id="_mpc">取消</button>
+            <button class="modal-btn modal-btn-ok" id="_mpo">确认</button>
+        </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('#_mp');
+    const close = () => overlay.remove();
+    const confirm = () => { const v = input.value; close(); onOk && onOk(v); };
+    overlay.querySelector('#_mpc').onclick = () => { close(); onCancel && onCancel(); };
+    overlay.querySelector('#_mpo').onclick = confirm;
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') confirm(); if (e.key === 'Escape') { close(); onCancel && onCancel(); } });
+    overlay.addEventListener('click', e => { if (e.target === overlay) { close(); onCancel && onCancel(); } });
+    setTimeout(() => { input.focus(); input.select(); }, 50);
 }
 
 
