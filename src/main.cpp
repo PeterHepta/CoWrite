@@ -56,6 +56,7 @@ public:
     void join(Session* session);
     void leave(Session* session);
     void broadcast_except(Session* sender, const std::string& message);
+    void broadcast_all(const std::string& message);
     void send_history(Session* session);
     void save_event(const std::string& payload);
     uint32_t generate_site_id() { return next_site_id_++; }
@@ -82,7 +83,7 @@ class Server {
 public:
     sqlite3* db_ = nullptr;
 
-    // 预编译语句缓存（仅在 db_thread_ 中使用，无需加锁）
+    // 预编译语句缓存
     sqlite3_stmt* stmt_insert_event_        = nullptr;
     sqlite3_stmt* stmt_insert_user_         = nullptr;
     sqlite3_stmt* stmt_login_               = nullptr;
@@ -98,6 +99,11 @@ public:
     sqlite3_stmt* stmt_get_members_         = nullptr;
     sqlite3_stmt* stmt_get_my_rooms_        = nullptr;
     sqlite3_stmt* stmt_get_history_         = nullptr;
+    sqlite3_stmt* stmt_insert_save_         = nullptr;
+    sqlite3_stmt* stmt_delete_quick_save_   = nullptr;
+    sqlite3_stmt* stmt_get_saves_           = nullptr;
+    sqlite3_stmt* stmt_delete_save_         = nullptr;
+    sqlite3_stmt* stmt_get_save_by_id_      = nullptr;
 
     Server() {
         if (sqlite3_open("collab_doc_v2.db", &db_)) {
@@ -202,6 +208,39 @@ public:
             "SELECT payload FROM events WHERE doc_id = ? ORDER BY id ASC;",
             -1, &stmt_get_history_, nullptr);
 
+        // saves 表
+        sqlite3_exec(db_,
+            "CREATE TABLE IF NOT EXISTS saves ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+            "doc_id TEXT NOT NULL, "
+            "created_by TEXT NOT NULL, "
+            "name TEXT NOT NULL, "
+            "is_quick INTEGER DEFAULT 0, "
+            "created_at INTEGER NOT NULL DEFAULT (strftime('%s','now')), "
+            "doc_state TEXT NOT NULL, "
+            "shapes TEXT NOT NULL"
+            ");",
+            nullptr, nullptr, nullptr);
+        sqlite3_exec(db_,
+            "CREATE INDEX IF NOT EXISTS idx_saves_doc_id ON saves(doc_id);",
+            nullptr, nullptr, nullptr);
+
+        sqlite3_prepare_v2(db_,
+            "INSERT INTO saves (doc_id, created_by, name, is_quick, doc_state, shapes) VALUES (?,?,?,?,?,?);",
+            -1, &stmt_insert_save_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "DELETE FROM saves WHERE doc_id=? AND is_quick=1;",
+            -1, &stmt_delete_quick_save_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "SELECT id, created_by, name, is_quick, created_at FROM saves WHERE doc_id=? ORDER BY is_quick DESC, created_at DESC;",
+            -1, &stmt_get_saves_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "DELETE FROM saves WHERE id=? AND doc_id=?;",
+            -1, &stmt_delete_save_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "SELECT name, doc_state, shapes FROM saves WHERE id=? AND doc_id=?;",
+            -1, &stmt_get_save_by_id_, nullptr);
+
         db_thread_ = std::thread(&Server::db_worker_loop, this);
     }
 
@@ -229,6 +268,11 @@ public:
         sqlite3_finalize(stmt_get_members_);
         sqlite3_finalize(stmt_get_my_rooms_);
         sqlite3_finalize(stmt_get_history_);
+        sqlite3_finalize(stmt_insert_save_);
+        sqlite3_finalize(stmt_delete_quick_save_);
+        sqlite3_finalize(stmt_get_saves_);
+        sqlite3_finalize(stmt_delete_save_);
+        sqlite3_finalize(stmt_get_save_by_id_);
 
         if (db_) sqlite3_close(db_);
     }
@@ -310,14 +354,19 @@ class Session : public std::enable_shared_from_this<Session> {
     uint32_t site_id_ = 0;
     bool joined_ = false;
 
-    std::queue<std::string> write_queue_;
+    // write batching
+    std::vector<std::string> pending_; 
     bool is_writing_ = false;
+    bool timer_armed_ = false;
+    net::steady_timer batch_timer_;
+    std::string write_buf_;              // 当前正在发送的帧内容
 
     std::string username_;
 
 public:
     Session(tcp::socket&& socket, Server& server)
-        : ws_(std::move(socket)), server_(server) {}
+        : ws_(std::move(socket)), server_(server),
+          batch_timer_(ws_.get_executor()) {}
 
     ~Session() {
         if (!username_.empty()) server_.unregister_user(username_, this);
@@ -728,6 +777,116 @@ public:
                             self->send(res.dump());
                         });
                     });
+                } else if (msg_type == "save_snapshot" || msg_type == "quicksave_snapshot") {
+                    bool is_quick = (msg_type == "quicksave_snapshot");
+                    std::string save_name = is_quick ? "快速存档" : data.value("name", "默认存档");
+                    std::string doc_state = data.value("doc_state", "[]");
+                    std::string shapes_str = data.value("shapes", "[]");
+                    std::string uname = username_;
+                    std::string doc_id = room_->doc_id();
+                    auto self = shared_from_this();
+                    server_.post_db_task([this, self, is_quick, save_name, doc_state, shapes_str, uname, doc_id]() {
+                        if (is_quick) {
+                            sqlite3_reset(server_.stmt_delete_quick_save_);
+                            sqlite3_bind_text(server_.stmt_delete_quick_save_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                            sqlite3_step(server_.stmt_delete_quick_save_);
+                        }
+                        sqlite3_reset(server_.stmt_insert_save_);
+                        sqlite3_bind_text(server_.stmt_insert_save_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(server_.stmt_insert_save_, 2, uname.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(server_.stmt_insert_save_, 3, save_name.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_int(server_.stmt_insert_save_,  4, is_quick ? 1 : 0);
+                        sqlite3_bind_text(server_.stmt_insert_save_, 5, doc_state.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(server_.stmt_insert_save_, 6, shapes_str.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_step(server_.stmt_insert_save_);
+                        int64_t new_id = sqlite3_last_insert_rowid(server_.db_);
+                        auto now = std::chrono::system_clock::now().time_since_epoch();
+                        int64_t ts = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+                        json res = {{"type","save_snapshot_res"},{"success",true},
+                                    {"id",new_id},{"name",save_name},
+                                    {"created_at",ts},{"is_quick",is_quick}};
+                        std::string resp = res.dump();
+                        net::post(ws_.get_executor(), [self, resp]() { self->send(resp); });
+                    });
+                } else if (msg_type == "get_saves") {
+                    std::string doc_id = room_->doc_id();
+                    auto self = shared_from_this();
+                    server_.post_db_task([this, self, doc_id]() {
+                        sqlite3_reset(server_.stmt_get_saves_);
+                        sqlite3_bind_text(server_.stmt_get_saves_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        json saves = json::array();
+                        while (sqlite3_step(server_.stmt_get_saves_) == SQLITE_ROW) {
+                            auto col_text = [&](int col) -> std::string {
+                                const char* t = reinterpret_cast<const char*>(sqlite3_column_text(server_.stmt_get_saves_, col));
+                                return t ? t : "";
+                            };
+                            json s;
+                            s["id"]         = sqlite3_column_int64(server_.stmt_get_saves_, 0);
+                            s["created_by"] = col_text(1);
+                            s["name"]       = col_text(2);
+                            s["is_quick"]   = (sqlite3_column_int(server_.stmt_get_saves_, 3) == 1);
+                            s["created_at"] = sqlite3_column_int64(server_.stmt_get_saves_, 4);
+                            saves.push_back(s);
+                        }
+                        json res = {{"type","get_saves_res"},{"success",true},{"saves",saves}};
+                        std::string resp = res.dump();
+                        net::post(ws_.get_executor(), [self, resp]() { self->send(resp); });
+                    });
+                } else if (msg_type == "load_save") {
+                    int64_t save_id = data.value("save_id", (int64_t)0);
+                    std::string doc_id = room_->doc_id();
+                    std::string uname = username_;
+                    auto self = shared_from_this();
+                    auto room_ref = room_;
+                    server_.post_db_task([this, self, room_ref, save_id, doc_id, uname]() {
+                        sqlite3_reset(server_.stmt_get_save_by_id_);
+                        sqlite3_bind_int64(server_.stmt_get_save_by_id_, 1, save_id);
+                        sqlite3_bind_text(server_.stmt_get_save_by_id_, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        if (sqlite3_step(server_.stmt_get_save_by_id_) != SQLITE_ROW) {
+                            net::post(ws_.get_executor(), [self]() {
+                                self->send(R"({"type":"load_save_res","success":false,"msg":"存档不存在"})");
+                            });
+                            return;
+                        }
+                        auto col_text = [&](int col) -> std::string {
+                            const char* t = reinterpret_cast<const char*>(sqlite3_column_text(server_.stmt_get_save_by_id_, col));
+                            return t ? t : "";
+                        };
+                        std::string save_name = col_text(0);
+                        std::string doc_state_str = col_text(1);
+                        std::string shapes_str = col_text(2);
+                        // 解析 doc_state 和 shapes 为 JSON 对象再放进广播消息
+                        json broadcast_msg;
+                        broadcast_msg["type"] = "load_save_applied";
+                        broadcast_msg["save_id"] = save_id;
+                        broadcast_msg["name"] = save_name;
+                        broadcast_msg["applied_by"] = uname;
+                        try { broadcast_msg["doc_state"] = json::parse(doc_state_str); } catch(...) { broadcast_msg["doc_state"] = json::array(); }
+                        try { broadcast_msg["shapes"] = json::parse(shapes_str); } catch(...) { broadcast_msg["shapes"] = json::array(); }
+                        std::string resp = broadcast_msg.dump();
+                        net::post(ws_.get_executor(), [room_ref, resp]() {
+                            room_ref->broadcast_all(resp);
+                        });
+                    });
+                } else if (msg_type == "delete_save") {
+                    int64_t save_id = data.value("save_id", (int64_t)0);
+                    std::string doc_id = room_->doc_id();
+                    auto self = shared_from_this();
+                    auto room_ref = room_;
+                    server_.post_db_task([this, self, room_ref, save_id, doc_id]() {
+                        sqlite3_reset(server_.stmt_delete_save_);
+                        sqlite3_bind_int64(server_.stmt_delete_save_, 1, save_id);
+                        sqlite3_bind_text(server_.stmt_delete_save_, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_step(server_.stmt_delete_save_);
+                        json res = {{"type","delete_save_res"},{"success",true},{"save_id",save_id}};
+                        std::string resp_sender = res.dump();
+                        json bcast = {{"type","save_deleted"},{"save_id",save_id}};
+                        std::string resp_bcast = bcast.dump();
+                        net::post(ws_.get_executor(), [self, room_ref, resp_sender, resp_bcast]() {
+                            self->send(resp_sender);
+                            room_ref->broadcast_except(self.get(), resp_bcast);
+                        });
+                    });
                 } else if (msg_type == "cursor" || msg_type == "presence") {
                     room_->broadcast_except(this, payload);
                 } else {
@@ -739,23 +898,64 @@ public:
     }
 
     void send(const std::string& message) {
-        net::post(ws_.get_executor(), beast::bind_front_handler(&Session::on_send, shared_from_this(), message));
+        net::post(ws_.get_executor(), [self = shared_from_this(), message]() {
+            self->enqueue(message);
+        });
+    }
+
+    void send_shared(std::shared_ptr<const std::string> message) {
+        net::post(ws_.get_executor(), [self = shared_from_this(), message]() {
+            self->enqueue(*message);
+        });
     }
 
 private:
-    void on_send(std::string message) {
-        write_queue_.push(std::move(message));
-        if (!is_writing_) do_write();
+    void enqueue(const std::string& msg) {
+        pending_.push_back(msg);
+        if (is_writing_) return;          // 正在发，等 on_write 结束后自动续上
+        if (!timer_armed_) arm_timer();
     }
-    void do_write() {
+
+    void arm_timer() {
+        timer_armed_ = true;
+        batch_timer_.expires_after(std::chrono::milliseconds(2));
+        batch_timer_.async_wait([self = shared_from_this()](beast::error_code ec) {
+            if (ec) return;
+            self->timer_armed_ = false;
+            if (!self->pending_.empty() && !self->is_writing_)
+                self->flush();
+        });
+    }
+
+    void flush() {
+        // 把 pending_ 里所有消息打包成一帧
+        if (pending_.size() == 1) {
+            write_buf_ = std::move(pending_[0]);
+        } else {
+            // {"type":"batch","msgs":[...]}
+            std::string out;
+            out.reserve(64 + pending_.size() * 64);
+            out += R"({"type":"batch","msgs":[)";
+            for (std::size_t i = 0; i < pending_.size(); ++i) {
+                if (i) out += ',';
+                out += pending_[i];
+            }
+            out += "]}";
+            write_buf_ = std::move(out);
+        }
+        pending_.clear();
         is_writing_ = true;
         ws_.text(true);
-        ws_.async_write(net::buffer(write_queue_.front()), beast::bind_front_handler(&Session::on_write, shared_from_this()));
+        ws_.async_write(net::buffer(write_buf_),
+            beast::bind_front_handler(&Session::on_write, shared_from_this()));
     }
+
     void on_write(beast::error_code ec, std::size_t) {
         if (ec) return;
-        write_queue_.pop();
-        if (!write_queue_.empty()) do_write(); else is_writing_ = false;
+        is_writing_ = false;
+        if (!pending_.empty()) {
+            flush();
+        }
     }
 };
 
@@ -781,8 +981,15 @@ void Server::unregister_user(const std::string& username, Session* session) {
 void Room::join(Session* session) { std::lock_guard<std::mutex> lock(mutex_); sessions_.insert(session); }
 void Room::leave(Session* session) { std::lock_guard<std::mutex> lock(mutex_); sessions_.erase(session); }
 void Room::broadcast_except(Session* sender, const std::string& message) {
+    auto shared_msg = std::make_shared<const std::string>(message);
     std::lock_guard<std::mutex> lock(mutex_);
-    for (auto* session : sessions_) if (session != sender) session->send(message);
+    for (auto* session : sessions_)
+        if (session != sender) session->send_shared(shared_msg);
+}
+void Room::broadcast_all(const std::string& message) {
+    auto shared_msg = std::make_shared<const std::string>(message);
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto* session : sessions_) session->send_shared(shared_msg);
 }
 void Room::send_history(Session* session) {
     // 在 db_thread_ 中查询历史

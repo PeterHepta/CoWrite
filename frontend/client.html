@@ -11,8 +11,9 @@
         .panel { background: white; border-radius: 8px; box-shadow: 0 1px 5px rgba(0,0,0,0.1); }
         .status-header {
             display: flex; align-items: stretch; gap: 0;
-            padding: 0; overflow: hidden;
+            padding: 0; overflow: visible;
             border-bottom: none; margin-bottom: 0;
+            border-radius: 8px;
         }
         .status-section {
             display: flex; align-items: center; gap: 8px;
@@ -260,6 +261,81 @@
             pointer-events: none; z-index: 30;
             display: none; white-space: nowrap;
         }
+
+        /* 存档下拉菜单 */
+        .save-dropdown-wrap {
+            position: relative; display: none; align-items: center;
+        }
+        .save-dropdown-wrap.visible { display: inline-flex; }
+        #btn-save-menu {
+            background: none; border: 1px solid #34c759; border-radius: 6px;
+            padding: 4px 10px; font-size: 12px; cursor: pointer; color: #34c759;
+            white-space: nowrap; display: flex; align-items: center; gap: 4px;
+            transition: background .15s, color .15s;
+        }
+        #btn-save-menu:hover { background: #34c759; color: white; }
+        .save-dropdown-menu {
+            position: absolute; top: calc(100% + 6px); right: 0;
+            background: white; border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.13);
+            border: 1px solid #e8e8f0; min-width: 140px; z-index: 1000;
+            display: none; flex-direction: column; overflow: hidden;
+        }
+        .save-dropdown-menu.open { display: flex; }
+        .save-menu-item {
+            padding: 10px 16px; font-size: 13px; color: #1a1a2e; cursor: pointer;
+            display: flex; align-items: center; gap: 8px; white-space: nowrap;
+            transition: background .12s;
+        }
+        .save-menu-item:hover { background: #f2f2f7; }
+        .save-menu-item + .save-menu-item { border-top: 1px solid #f0f0f5; }
+
+        /* 读取存档弹窗 */
+        #load-save-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.35); display: none;
+            justify-content: center; align-items: center; z-index: 9000;
+        }
+        #load-save-overlay.open { display: flex; }
+        .load-save-modal {
+            background: white; border-radius: 16px;
+            box-shadow: 0 4px 30px rgba(0,0,0,0.18);
+            width: 440px; max-width: 94vw; max-height: 80vh;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .load-save-header {
+            padding: 18px 20px 14px; border-bottom: 1px solid #f0f0f5;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .load-save-header h3 { margin: 0; font-size: 16px; font-weight: 700; color: #1a1a2e; }
+        #btn-close-load-save {
+            background: none; border: none; font-size: 20px; cursor: pointer;
+            color: #8a8a9a; line-height: 1; padding: 0 4px;
+        }
+        #btn-close-load-save:hover { color: #1a1a2e; }
+        .load-save-list {
+            flex: 1; overflow-y: auto; padding: 10px 12px; display: flex;
+            flex-direction: column; gap: 8px;
+        }
+        .save-slot-card {
+            padding: 12px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
+            cursor: pointer; background: #fafafe;
+            transition: border-color .15s, background .15s;
+            display: flex; align-items: center; justify-content: space-between; gap: 8px;
+        }
+        .save-slot-card:hover { border-color: #007aff; background: #f0f6ff; }
+        .save-slot-card.quick-save { border-color: #ff9f0a; background: #fff8ee; }
+        .save-slot-card.quick-save:hover { background: #fff0d0; }
+        .save-slot-info { flex: 1; min-width: 0; }
+        .save-slot-name { font-size: 14px; font-weight: 600; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .save-slot-meta { font-size: 11px; color: #8a8a9a; margin-top: 2px; }
+        .save-slot-del {
+            background: none; border: 1px solid #ff3b30; color: #ff3b30; border-radius: 5px;
+            font-size: 11px; padding: 3px 7px; cursor: pointer; flex-shrink: 0;
+            transition: background .12s, color .12s;
+        }
+        .save-slot-del:hover { background: #ff3b30; color: white; }
+        .load-save-empty { padding: 28px; text-align: center; color: #8a8a9a; font-size: 13px; }
     </style>
 </head>
 <body>
@@ -429,6 +505,15 @@
             <button id="btn-gen-invite" class="action-btn orange" style="display:none;">🔑 邀请</button>
             <button id="btn-members" class="action-btn blue" style="display:none;">👥 成员</button>
             <button id="btn-leave-room" class="action-btn orange" style="display:none;">退出房间</button>
+            <!-- 存档下拉 -->
+            <div class="save-dropdown-wrap" id="save-dropdown-wrap">
+                <button id="btn-save-menu">💾 存档 ▾</button>
+                <div class="save-dropdown-menu" id="save-dropdown-menu">
+                    <div class="save-menu-item" id="menu-save">📁 保存</div>
+                    <div class="save-menu-item" id="menu-quicksave">⚡ 快速保存</div>
+                    <div class="save-menu-item" id="menu-load">📂 读取</div>
+                </div>
+            </div>
             <div id="members-panel">
                 <div class="members-panel-header">房间成员</div>
                 <div class="members-list" id="members-list"><div class="member-item" style="color:#8a8a9a;">加载中...</div></div>
@@ -502,6 +587,16 @@
     </div>
 
     <div id="log"></div>
+</div>
+
+<div id="load-save-overlay">
+    <div class="load-save-modal">
+        <div class="load-save-header">
+            <h3>📂 读取存档</h3>
+            <button id="btn-close-load-save">✕</button>
+        </div>
+        <div class="load-save-list" id="load-save-list"></div>
+    </div>
 </div>
 
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
@@ -1188,9 +1283,7 @@ function applyRemoteShape(data) {
     }
 }
 
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-
+function handleMessage(data) {
     if (data.type === "kicked") {
         alert(data.msg);
         localStorage.clear();
@@ -1353,6 +1446,44 @@ ws.onmessage = (event) => {
                 </div>`).join('');
         }
     }
+    else if (data.type === "save_snapshot_res") {
+        if (data.success) {
+            const label = data.is_quick ? '⚡ 快速存档已更新' : `💾 已保存存档「${data.name}」`;
+            addLog(label, true);
+        }
+    }
+    else if (data.type === "get_saves_res") {
+        if (data.success) {
+            cachedSaves = data.saves || [];
+            if (pendingSaveAfterList) {
+                pendingSaveAfterList = false;
+                doSaveWithPrompt();
+            } else {
+                openLoadModal(cachedSaves);
+            }
+        }
+    }
+    else if (data.type === "load_save_applied") {
+        applySnapshot({ docState: data.doc_state, shapes: data.shapes });
+        document.getElementById('load-save-overlay').classList.remove('open');
+        addLog(`📂 存档「${data.name}」已被 ${escapeHtml(data.applied_by)} 读取并应用`, true);
+    }
+    else if (data.type === "delete_save_res") {
+        if (data.success) {
+            const card = document.querySelector(`.save-slot-card[data-save-id="${data.save_id}"]`);
+            if (card) card.remove();
+            const list = document.getElementById('load-save-list');
+            if (list && !list.querySelector('.save-slot-card'))
+                list.innerHTML = '<div class="load-save-empty">暂无存档</div>';
+        }
+    }
+    else if (data.type === "save_deleted") {
+        const card = document.querySelector(`.save-slot-card[data-save-id="${data.save_id}"]`);
+        if (card) card.remove();
+        const list = document.getElementById('load-save-list');
+        if (list && !list.querySelector('.save-slot-card'))
+            list.innerHTML = '<div class="load-save-empty">暂无存档</div>';
+    }
     else if (data.type === "init") {
         mySiteId = data.site_id;
         localStorage.setItem('mySiteId', mySiteId);
@@ -1370,24 +1501,28 @@ ws.onmessage = (event) => {
         document.getElementById('btn-leave-room').style.display = 'inline-flex';
         document.getElementById('btn-members').style.display = 'inline-flex';
         resizeCanvas();
+        showSaveBtn();
     }
     else if (data.type === "history_batch") {
         isApplyingRemoteChange = true;
         // 先构建完整 docState，排序一次
         for (const ev of data.events) {
-            if (ev.type === "insert") {
-                docState.push({ id: ev.id, char: ev.char, attributes: ev.attributes || {} });
-            } else if (ev.type === "delete") {
-                const idx = docState.findIndex(item => item.id === ev.id);
-                if (idx !== -1) docState.splice(idx, 1);
-            } else if (ev.type === "format") {
-                const item = docState.find(item => item.id === ev.id);
-                if (item) {
-                    if (ev.value === null || ev.value === false) delete item.attributes[ev.key];
-                    else item.attributes[ev.key] = ev.value;
+            const evList = ev.type === "ops_batch" ? ev.ops : [ev];
+            for (const e of evList) {
+                if (e.type === "insert") {
+                    docState.push({ id: e.id, char: e.char, attributes: e.attributes || {} });
+                } else if (e.type === "delete") {
+                    const idx = docState.findIndex(item => item.id === e.id);
+                    if (idx !== -1) docState.splice(idx, 1);
+                } else if (e.type === "format") {
+                    const item = docState.find(item => item.id === e.id);
+                    if (item) {
+                        if (e.value === null || e.value === false) delete item.attributes[e.key];
+                        else item.attributes[e.key] = e.value;
+                    }
+                } else if (e.type === "shape_add" || e.type === "shape_move" || e.type === "shape_delete") {
+                    applyRemoteShape(e);
                 }
-            } else if (ev.type === "shape_add" || ev.type === "shape_move" || ev.type === "shape_delete") {
-                applyRemoteShape(ev);
             }
         }
         docState.sort((a, b) => a.id.localeCompare(b.id));
@@ -1407,6 +1542,41 @@ ws.onmessage = (event) => {
             }
         }
         if (ops.length > 0) quill.setContents({ ops }, 'silent');
+        isApplyingRemoteChange = false;
+    }
+    else if (data.type === "ops_batch") {
+        // 批量操作：先全部应用到 docState，再一次性重建 Quill
+        isApplyingRemoteChange = true;
+        for (const op of data.ops) {
+            if (op.type === "insert") {
+                docState.push({ id: op.id, char: op.char, attributes: op.attributes || {} });
+            } else if (op.type === "delete") {
+                const idx = docState.findIndex(item => item.id === op.id);
+                if (idx !== -1) docState.splice(idx, 1);
+            } else if (op.type === "format") {
+                const item = docState.find(item => item.id === op.id);
+                if (item) {
+                    if (op.value === null || op.value === false) delete item.attributes[op.key];
+                    else item.attributes[op.key] = op.value;
+                }
+            }
+        }
+        docState.sort((a, b) => a.id.localeCompare(b.id));
+        const quillOps = [];
+        for (const item of docState) {
+            if (typeof item.char === 'string') {
+                if (item.char.length > 0) {
+                    const qop = { insert: item.char };
+                    if (Object.keys(item.attributes).length > 0) qop.attributes = item.attributes;
+                    quillOps.push(qop);
+                }
+            } else {
+                const qop = { insert: item.char };
+                if (Object.keys(item.attributes).length > 0) qop.attributes = item.attributes;
+                quillOps.push(qop);
+            }
+        }
+        if (quillOps.length > 0) quill.setContents({ ops: quillOps }, 'silent');
         isApplyingRemoteChange = false;
     }
     else if (data.type === "presence") {
@@ -1459,6 +1629,15 @@ ws.onmessage = (event) => {
         }
         isApplyingRemoteChange = false;
     }
+}
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === "batch") {
+        for (const msg of data.msgs) handleMessage(msg);
+    } else {
+        handleMessage(data);
+    }
 };
 
 const btnMembers = document.getElementById('btn-members');
@@ -1497,6 +1676,8 @@ quill.on('selection-change', (range, oldRange, source) => {
 quill.on('text-change', (delta, oldDelta, source) => {
     if (source === 'silent' || !mySiteId || isApplyingRemoteChange) return;
     let currentIndex = 0;
+    // 收集本次 text-change 产生的所有操作，批量发送
+    const batchOps = [];
     delta.ops.forEach(op => {
         if (op.retain) {
             if (op.attributes) {
@@ -1507,7 +1688,7 @@ quill.on('text-change', (delta, oldDelta, source) => {
                     attrKeys.forEach(key => {
                         const val = op.attributes[key];
                         if (val === null || val === false) delete charItem.attributes[key]; else charItem.attributes[key] = val;
-                        ws.send(JSON.stringify({ type: "format", id: charItem.id, key: key, value: val }));
+                        batchOps.push({ type: "format", id: charItem.id, key: key, value: val });
                     });
                 }
             }
@@ -1527,19 +1708,178 @@ quill.on('text-change', (delta, oldDelta, source) => {
                 const absoluteId = `${generatePosBetween(leftId, rightId)}@${mySiteId}`;
                 const attrs = op.attributes || {};
                 docState.splice(currentIndex, 0, { id: absoluteId, char: item, attributes: attrs });
-                ws.send(JSON.stringify({ type: "insert", id: absoluteId, char: item, attributes: attrs }));
+                batchOps.push({ type: "insert", id: absoluteId, char: item, attributes: attrs });
                 currentIndex++;
             }
         } else if (op.delete) {
             for (let i = 0; i < op.delete; i++) {
                 if (currentIndex < docState.length) {
                     const delId = docState[currentIndex].id; docState.splice(currentIndex, 1);
-                    ws.send(JSON.stringify({ type: "delete", id: delId }));
+                    batchOps.push({ type: "delete", id: delId });
                 }
             }
         }
     });
+    // 单条操作直接发，多条打包成 ops_batch 一次发送
+    if (batchOps.length === 1) {
+        ws.send(JSON.stringify(batchOps[0]));
+    } else if (batchOps.length > 1) {
+        ws.send(JSON.stringify({ type: "ops_batch", ops: batchOps }));
+    }
 });
+
+function captureSnapshot() {
+    return {
+        docState: JSON.parse(JSON.stringify(docState)),
+        shapes:   JSON.parse(JSON.stringify(shapes))
+    };
+}
+
+function applySnapshot(snap) {
+    docState.length = 0;
+    (snap.docState || []).forEach(item => docState.push(item));
+
+    isApplyingRemoteChange = true;
+    const ops = [];
+    for (const item of docState) {
+        if (typeof item.char === 'string') {
+            if (item.char.length > 0) {
+                const op = { insert: item.char };
+                if (Object.keys(item.attributes).length > 0) op.attributes = item.attributes;
+                ops.push(op);
+            }
+        } else {
+            const op = { insert: item.char };
+            if (Object.keys(item.attributes).length > 0) op.attributes = item.attributes;
+            ops.push(op);
+        }
+    }
+    if (ops.length > 0) quill.setContents({ ops }, 'silent');
+    else quill.setContents({ ops: [{ insert: '\n' }] }, 'silent');
+    isApplyingRemoteChange = false;
+
+    shapes.length = 0;
+    (snap.shapes || []).forEach(s => shapes.push(s));
+    renderShapes();
+    updateTextWrap();
+}
+
+let cachedSaves = [];
+
+function uniqueSaveName(baseName) {
+    const existing = new Set(cachedSaves.filter(s => !s.is_quick).map(s => s.name));
+    if (!existing.has(baseName)) return baseName;
+    let i = 1;
+    while (existing.has(`${baseName}(${i})`)) i++;
+    return `${baseName}(${i})`;
+}
+
+
+document.getElementById('menu-save').onclick = () => {
+    closeSaveDropdown();
+    ws.send(JSON.stringify({ type: "get_saves" }));
+    pendingSaveAfterList = true;
+};
+
+let pendingSaveAfterList = false;
+
+function doSaveWithPrompt() {
+    const input = prompt('请输入存档名称（留空则使用"默认存档"）：', '');
+    if (input === null) return;
+    const baseName = input.trim() || '默认存档';
+    const name = uniqueSaveName(baseName);
+    const snap = captureSnapshot();
+    ws.send(JSON.stringify({
+        type: "save_snapshot",
+        name,
+        doc_state: JSON.stringify(snap.docState),
+        shapes: JSON.stringify(snap.shapes)
+    }));
+};
+
+document.getElementById('menu-quicksave').onclick = () => {
+    closeSaveDropdown();
+    const snap = captureSnapshot();
+    ws.send(JSON.stringify({
+        type: "quicksave_snapshot",
+        doc_state: JSON.stringify(snap.docState),
+        shapes: JSON.stringify(snap.shapes)
+    }));
+};
+
+document.getElementById('menu-load').onclick = () => {
+    closeSaveDropdown();
+    ws.send(JSON.stringify({ type: "get_saves" }));
+};
+
+let pendingOpenModal = false;
+
+function openLoadModal(saves) {
+    const overlay = document.getElementById('load-save-overlay');
+    const list = document.getElementById('load-save-list');
+    list.innerHTML = '';
+    if (!saves || !saves.length) {
+        list.innerHTML = '<div class="load-save-empty">暂无存档</div>';
+        overlay.classList.add('open');
+        return;
+    }
+    saves.forEach(save => {
+        const card = document.createElement('div');
+        card.className = 'save-slot-card' + (save.is_quick ? ' quick-save' : '');
+        card.dataset.saveId = save.id;
+
+        const dateStr = new Date(save.created_at * 1000).toLocaleString('zh-CN', {
+            month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        card.innerHTML = `
+            <div class="save-slot-info">
+                <div class="save-slot-name">${escapeHtml(save.name)}${save.is_quick ? ' ⚡' : ''}</div>
+                <div class="save-slot-meta">保存于 ${dateStr}，由 ${escapeHtml(save.created_by)} 创建</div>
+            </div>
+            <button class="save-slot-del">删除</button>`;
+
+        card.addEventListener('click', (e) => {
+            if (e.target.classList.contains('save-slot-del')) return;
+            if (!confirm(`确认读取存档「${save.name}」？房间内所有人的内容都将被覆盖。`)) return;
+            ws.send(JSON.stringify({ type: "load_save", save_id: save.id }));
+        });
+
+        card.querySelector('.save-slot-del').onclick = (e) => {
+            e.stopPropagation();
+            if (!confirm(`确认删除存档「${save.name}」？`)) return;
+            ws.send(JSON.stringify({ type: "delete_save", save_id: save.id }));
+        };
+
+        list.appendChild(card);
+    });
+    overlay.classList.add('open');
+}
+
+document.getElementById('btn-close-load-save').onclick = () => {
+    document.getElementById('load-save-overlay').classList.remove('open');
+};
+document.getElementById('load-save-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('load-save-overlay'))
+        document.getElementById('load-save-overlay').classList.remove('open');
+});
+
+const saveDropdownMenu = document.getElementById('save-dropdown-menu');
+document.getElementById('btn-save-menu').onclick = (e) => {
+    e.stopPropagation();
+    saveDropdownMenu.classList.toggle('open');
+};
+function closeSaveDropdown() { saveDropdownMenu.classList.remove('open'); }
+document.addEventListener('click', (e) => {
+    if (!document.getElementById('save-dropdown-wrap').contains(e.target)) closeSaveDropdown();
+});
+
+function showSaveBtn() {
+    document.getElementById('save-dropdown-wrap').classList.add('visible');
+}
+
+
 </script>
 </body>
 </html>
