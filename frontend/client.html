@@ -21,18 +21,12 @@
         .status-section + .status-section {
             border-left: 1px solid #eef0f3;
         }
-        .status-section-brand {
-            min-width: 90px;
-        }
+        .status-section-brand { min-width: 90px; }
         .status-section-brand .brand-name {
             font-size: 15px; font-weight: 700; color: #1a1a2e; letter-spacing: -0.2px;
         }
-        .status-section-doc {
-            flex: 1;
-        }
-        .status-section-user {
-            gap: 6px;
-        }
+        .status-section-doc { flex: 1; }
+        .status-section-user { gap: 6px; }
         .status-pill {
             display: inline-flex; align-items: center; gap: 4px;
             background: #f2f2f7; border-radius: 20px;
@@ -40,13 +34,63 @@
         }
         .status-pill.online { background: #e8f8ee; color: #1a7a3a; }
         .status-pill.waiting { background: #fff8e6; color: #996600; }
-        #editor-container { flex: 1; border-radius: 0 0 8px 8px; font-size: 16px; border: 1px solid #ccc; background: white; }
+
+        /* 编辑器+图形层容器 */
+        #editor-wrap {
+            flex: 1; position: relative; display: flex; flex-direction: column;
+            border: 1px solid #ccc; border-radius: 0 0 8px 8px; background: white;
+            overflow: hidden;
+        }
+        #editor-container {
+            flex: 1; font-size: 16px; background: white;
+            border: none !important; border-radius: 0 !important;
+        }
+        /* 图形画布，绝对覆盖在编辑器上 */
+        #shape-canvas {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none; /* 默认不拦截事件，由 JS 动态切换 */
+            z-index: 10;
+        }
+        /* 图形工具栏 */
+        #shape-toolbar {
+            display: flex; align-items: center; gap: 6px;
+            padding: 6px 12px;
+            background: #fafafa;
+            border-bottom: 1px solid #e8e8f0;
+            flex-shrink: 0;
+        }
+        #shape-toolbar .stb-label {
+            font-size: 12px; color: #8a8a9a; white-space: nowrap;
+        }
+        .shape-btn {
+            width: 32px; height: 32px;
+            border: 1.5px solid #d0d0d8; border-radius: 6px;
+            background: white; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: border-color .15s, background .15s;
+            padding: 0; flex-shrink: 0;
+        }
+        .shape-btn:hover { border-color: #007aff; background: #f0f6ff; }
+        .shape-btn.active { border-color: #007aff; background: #e0f0ff; }
+        .shape-btn svg { width: 18px; height: 18px; }
+        .stb-sep { width: 1px; height: 20px; background: #e8e8f0; margin: 0 2px; }
+
+        /* 图形选中把手 */
+        .shape-handle {
+            position: absolute;
+            width: 10px; height: 10px;
+            background: white; border: 2px solid #007aff;
+            border-radius: 2px; transform: translate(-50%, -50%);
+            cursor: nwse-resize; z-index: 20;
+            pointer-events: all;
+        }
+
         .ql-toolbar.ql-snow { border-radius: 8px 8px 0 0; border: 1px solid #ccc; background: #fafafa; border-bottom: none; }
-        /* 工具栏与状态栏视觉对齐：工具栏内元素垂直居中 */
         .ql-toolbar.ql-snow .ql-formats { margin-right: 12px; vertical-align: middle; }
         #log { background: #2d2d2d; color: #a9dc76; padding: 10px; height: 80px; overflow-y: auto; font-family: monospace; border-radius: 4px; font-size: 11px; margin-top: 5px; }
         .log-own { color: #fc9867; }
-        
+
         #auth-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #f0f4f8;
@@ -56,9 +100,7 @@
             width: 380px;
             display: flex; flex-direction: column; align-items: center; gap: 0;
         }
-        .auth-logo {
-            margin-bottom: 32px; text-align: center;
-        }
+        .auth-logo { margin-bottom: 32px; text-align: center; }
         .auth-logo .logo-icon {
             width: 52px; height: 52px; background: #007aff; border-radius: 14px;
             display: flex; align-items: center; justify-content: center;
@@ -72,9 +114,7 @@
             background: white; border-radius: 16px; box-shadow: 0 2px 20px rgba(0,0,0,0.08);
             width: 100%; overflow: hidden;
         }
-        .auth-tabs {
-            display: flex; border-bottom: 1px solid #f0f0f5;
-        }
+        .auth-tabs { display: flex; border-bottom: 1px solid #f0f0f5; }
         .auth-tab {
             flex: 1; padding: 16px; text-align: center; font-size: 14px; font-weight: 600;
             color: #8a8a9a; cursor: pointer; border: none; background: none;
@@ -97,7 +137,7 @@
         }
         .auth-submit:hover { opacity: 0.9; transform: translateY(-1px); }
         .auth-submit:active { transform: translateY(0); }
-        
+
         #btn-logout {
             background: none; color: #ff3b30; border: 1px solid #ff3b30; border-radius: 6px;
             padding: 4px 10px; font-size: 12px; cursor: pointer; display: none;
@@ -119,13 +159,8 @@
             background: #f0f4f8;
             display: none; justify-content: center; align-items: center; z-index: 9999;
         }
-        .flow-page {
-            width: 380px;
-            display: flex; flex-direction: column; align-items: center;
-        }
-        .flow-header {
-            margin-bottom: 28px; text-align: center;
-        }
+        .flow-page { width: 380px; display: flex; flex-direction: column; align-items: center; }
+        .flow-header { margin-bottom: 28px; text-align: center; }
         .flow-header .flow-icon {
             width: 48px; height: 48px; border-radius: 13px;
             display: flex; align-items: center; justify-content: center;
@@ -158,7 +193,7 @@
         .flow-btn-secondary:hover { background: #e8e8f0; opacity: 1; }
         .flow-divider { height: 1px; background: #f0f0f5; margin: 4px 0; }
         .flow-hint { font-size: 13px; color: #8a8a9a; text-align: center; margin: 0; }
-       
+
         #invite-code-display, #gen-invite-code-display {
             font-size: 30px; letter-spacing: 8px; color: #007aff;
             font-family: monospace; font-weight: 700;
@@ -169,25 +204,23 @@
             font-size: 22px; font-family: monospace; letter-spacing: 6px;
             text-align: center; text-transform: uppercase;
         }
-
         #timed-options select {
             width: 100%; padding: 12px 14px; border: 1.5px solid #e8e8f0; border-radius: 10px;
             font-size: 14px; outline: none; background: #fafafe; color: #1a1a2e;
             appearance: none; cursor: pointer;
         }
         #timed-options { display: flex; flex-direction: column; gap: 10px; }
-        
+
         #ql-custom-placeholder {
             position: absolute; top: 0; left: 0;
             padding: 12px 15px;
             color: #aaa; font-size: 16px;
-            pointer-events: none;
-            user-select: none;
+            pointer-events: none; user-select: none;
         }
         .room-card {
             display: flex; flex-direction: column; gap: 4px;
             padding: 14px 16px; border: 1.5px solid #e8e8f0; border-radius: 10px;
-            cursor: pointer; background: #fafafe;
+            cursor: pointer; background: #fafabe;
             transition: border-color .18s, background .18s;
         }
         .room-card:hover { border-color: #007aff; background: #f0f6ff; }
@@ -210,9 +243,7 @@
             display: flex; align-items: center; gap: 8px;
             padding: 7px 14px; font-size: 13px; color: #1a1a2e;
         }
-        .member-dot {
-            width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
-        }
+        .member-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
         .member-dot.in-room  { background: #34c759; }
         .member-dot.online   { background: #007aff; }
         .member-dot.offline  { background: #c7c7cc; }
@@ -221,7 +252,15 @@
             font-size: 10px; color: #ff9f0a; border: 1px solid #ff9f0a;
             border-radius: 4px; padding: 0px 4px; vertical-align: middle; margin-left: 4px;
         }
-</style>
+        /* 图形工具提示 */
+        #shape-hint {
+            position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.6); color: white; font-size: 12px;
+            padding: 4px 12px; border-radius: 20px;
+            pointer-events: none; z-index: 30;
+            display: none; white-space: nowrap;
+        }
+    </style>
 </head>
 <body>
 
@@ -381,31 +420,87 @@
 
 <div class="main-container">
     <div class="panel status-header">
-        <!-- 品牌区 -->
         <div class="status-section status-section-brand">
             <span class="brand-name">CoWrite ✨</span>
         </div>
-        <!-- 文档区 -->
         <div class="status-section status-section-doc">
             <span id="doc-display" style="color:#007aff; font-weight:bold; font-size:13px;"></span>
             <button id="btn-rename-room" title="修改房间名" class="action-btn blue" style="display:none;">✏️ 重命名</button>
             <button id="btn-gen-invite" class="action-btn orange" style="display:none;">🔑 邀请</button>
             <button id="btn-members" class="action-btn blue" style="display:none;">👥 成员</button>
             <button id="btn-leave-room" class="action-btn orange" style="display:none;">退出房间</button>
-            <!-- 成员下拉面板 -->
             <div id="members-panel">
                 <div class="members-panel-header">房间成员</div>
                 <div class="members-list" id="members-list"><div class="member-item" style="color:#8a8a9a;">加载中...</div></div>
             </div>
         </div>
-        <!-- 用户状态区 -->
         <div class="status-section status-section-user">
             <span id="status" class="status-pill waiting">等待登录 🟡</span>
             <span id="site-display" class="status-pill" style="color:#666;">身份未确认</span>
             <button id="btn-logout">退出登录</button>
         </div>
     </div>
-    <div id="editor-container"></div>
+
+    <div style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div id="quill-toolbar" style="border-radius:8px 8px 0 0; border:1px solid #ccc; background:#fafafa; border-bottom:none;">
+            <span class="ql-formats">
+                <select class="ql-header"><option value="1"></option><option value="2"></option><option value=""></option></select>
+            </span>
+            <span class="ql-formats">
+                <button class="ql-bold"></button>
+                <button class="ql-italic"></button>
+            </span>
+            <span class="ql-formats">
+                <select class="ql-color"></select>
+            </span>
+            <span class="ql-formats">
+                <button class="ql-emoji"></button>
+            </span>
+        </div>
+        <!-- 图形工具栏 -->
+        <div id="shape-toolbar">
+            <span class="stb-label">插入图形：</span>
+            <!-- 矩形 -->
+            <button class="shape-btn" id="stb-rect" title="矩形" onclick="selectShapeTool('rect')">
+                <svg viewBox="0 0 20 20" fill="none" stroke="#3a3a4a" stroke-width="1.8">
+                    <rect x="2" y="4" width="16" height="12" rx="1"/>
+                </svg>
+            </button>
+            <!-- 圆形 -->
+            <button class="shape-btn" id="stb-circle" title="圆形" onclick="selectShapeTool('circle')">
+                <svg viewBox="0 0 20 20" fill="none" stroke="#3a3a4a" stroke-width="1.8">
+                    <circle cx="10" cy="10" r="7"/>
+                </svg>
+            </button>
+            <!-- 三角形 -->
+            <button class="shape-btn" id="stb-triangle" title="三角形" onclick="selectShapeTool('triangle')">
+                <svg viewBox="0 0 20 20" fill="none" stroke="#3a3a4a" stroke-width="1.8">
+                    <polygon points="10,2 18,18 2,18"/>
+                </svg>
+            </button>
+            <!-- 五角星 -->
+            <button class="shape-btn" id="stb-star" title="五角星" onclick="selectShapeTool('star')">
+                <svg viewBox="0 0 20 20" fill="none" stroke="#3a3a4a" stroke-width="1.8">
+                    <polygon points="10,1 12.9,7 19.5,7.6 14.7,12 16.2,18.5 10,15 3.8,18.5 5.3,12 0.5,7.6 7.1,7"/>
+                </svg>
+            </button>
+            <div class="stb-sep"></div>
+            <!-- 取消 -->
+            <button class="shape-btn" id="stb-cancel" title="取消/选择模式" onclick="cancelShapeTool()" style="display:none;">
+                <svg viewBox="0 0 20 20" fill="none" stroke="#ff3b30" stroke-width="2">
+                    <line x1="4" y1="4" x2="16" y2="16"/><line x1="16" y1="4" x2="4" y2="16"/>
+                </svg>
+            </button>
+            <span id="shape-mode-hint" style="font-size:12px;color:#007aff;display:none;"></span>
+        </div>
+        <!-- 编辑器+画布 -->
+        <div id="editor-wrap">
+            <div id="editor-container"></div>
+            <canvas id="shape-canvas"></canvas>
+            <div id="shape-hint"></div>
+        </div>
+    </div>
+
     <div id="log"></div>
 </div>
 
@@ -414,593 +509,1003 @@
 <script src="https://unpkg.com/quill-emoji/dist/quill-emoji.js"></script>
 
 <script>
-    const statusSpan = document.getElementById('status');
-    const siteDisplay = document.getElementById('site-display');
-    const docDisplay = document.getElementById('doc-display');
-    const logPanel = document.getElementById('log');
-    const authOverlay = document.getElementById('auth-overlay');
-    const btnLogout = document.getElementById('btn-logout');
-    const roomChoiceOverlay = document.getElementById('room-choice-overlay');
-    const roomCreatedOverlay = document.getElementById('room-created-overlay');
-    const joinRoomOverlay = document.getElementById('join-room-overlay');
-    const myRoomsOverlay = document.getElementById('my-rooms-overlay');
-    const myRoomsList    = document.getElementById('my-rooms-list');
-    const myRoomsLoading = document.getElementById('my-rooms-loading');
-    const inviteCodeDisplay = document.getElementById('invite-code-display');
-    const inputInviteCode = document.getElementById('input-invite-code');
+const statusSpan = document.getElementById('status');
+const siteDisplay = document.getElementById('site-display');
+const docDisplay = document.getElementById('doc-display');
+const logPanel = document.getElementById('log');
+const authOverlay = document.getElementById('auth-overlay');
+const btnLogout = document.getElementById('btn-logout');
+const roomChoiceOverlay = document.getElementById('room-choice-overlay');
+const roomCreatedOverlay = document.getElementById('room-created-overlay');
+const joinRoomOverlay = document.getElementById('join-room-overlay');
+const myRoomsOverlay = document.getElementById('my-rooms-overlay');
+const myRoomsList    = document.getElementById('my-rooms-list');
+const myRoomsLoading = document.getElementById('my-rooms-loading');
+const inviteCodeDisplay = document.getElementById('invite-code-display');
+const inputInviteCode = document.getElementById('input-invite-code');
 
-    function switchTab(tab) {
-        const isLogin = tab === 'login';
-        document.getElementById('tab-login').classList.toggle('active', isLogin);
-        document.getElementById('tab-register').classList.toggle('active', !isLogin);
-        document.getElementById('form-login').style.display = isLogin ? 'flex' : 'none';
-        document.getElementById('form-register').style.display = isLogin ? 'none' : 'flex';
-    }
+function switchTab(tab) {
+    const isLogin = tab === 'login';
+    document.getElementById('tab-login').classList.toggle('active', isLogin);
+    document.getElementById('tab-register').classList.toggle('active', !isLogin);
+    document.getElementById('form-login').style.display = isLogin ? 'flex' : 'none';
+    document.getElementById('form-register').style.display = isLogin ? 'none' : 'flex';
+}
 
-    let currentRoom = JSON.parse(localStorage.getItem('currentRoom') || 'null');
+let currentRoom = JSON.parse(localStorage.getItem('currentRoom') || 'null');
 
-    Quill.register('modules/cursors', QuillCursors);
+Quill.register('modules/cursors', QuillCursors);
 
-    var quill = new Quill('#editor-container', {
-        modules: { 
-            toolbar: { container: [ [{ header: [1, 2, false] }], ['bold', 'italic'], [{ color: [] }], ['emoji'] ], handlers: { 'emoji': function() {} } },
-            "emoji-toolbar": true, "emoji-shortname": true,
-            cursors: { transformOnTextChange: true, hideDelayMs: 5000, hideSpeedMs: 300 }
+var quill = new Quill('#editor-container', {
+    modules: {
+        toolbar: {
+            container: '#quill-toolbar',
+            handlers: { 'emoji': function() {} }
         },
-        placeholder: '', theme: 'snow'
-    });
+        "emoji-toolbar": true, "emoji-shortname": true,
+        cursors: { transformOnTextChange: true, hideDelayMs: 5000, hideSpeedMs: 300 }
+    },
+    placeholder: '', theme: 'snow'
+});
 
-    const cursorsModule = quill.getModule('cursors');
+const cursorsModule = quill.getModule('cursors');
 
-    // 手动管理 placeholder
-    const editorEl = document.querySelector('#editor-container .ql-editor');
-    const placeholderEl = document.createElement('div');
-    placeholderEl.id = 'ql-custom-placeholder';
-    placeholderEl.innerText = '在这里开始协同创作...';
-    editorEl.parentElement.style.position = 'relative';
-    editorEl.parentElement.appendChild(placeholderEl);
+// 手动管理 placeholder
+const editorEl = document.querySelector('#editor-container .ql-editor');
+const placeholderEl = document.createElement('div');
+placeholderEl.id = 'ql-custom-placeholder';
+placeholderEl.innerText = '在这里开始协同创作...';
+editorEl.parentElement.style.position = 'relative';
+editorEl.parentElement.appendChild(placeholderEl);
 
-    function updatePlaceholder() {
-        const len = quill.getLength();
-        const isEmpty = len <= 1;
-        placeholderEl.style.display = isEmpty ? 'block' : 'none';
+function updatePlaceholder() {
+    const len = quill.getLength();
+    placeholderEl.style.display = len <= 1 ? 'block' : 'none';
+}
+function updatePlaceholderDeferred() { setTimeout(updatePlaceholder, 0); }
+quill.on('text-change', updatePlaceholderDeferred);
+editorEl.addEventListener('compositionstart', () => { placeholderEl.style.display = 'none'; });
+editorEl.addEventListener('compositionend', updatePlaceholder);
+editorEl.addEventListener('input', updatePlaceholder);
+new MutationObserver(updatePlaceholderDeferred).observe(editorEl, { childList: true, subtree: true, characterData: true });
+updatePlaceholder();
+
+let mySiteId = localStorage.getItem('mySiteId') ? parseInt(localStorage.getItem('mySiteId')) : null;
+let myUsername = localStorage.getItem('myUsername') || null;
+let myPassword = localStorage.getItem('myPassword') || null;
+
+let docState = [{ id: "p@0", char: "\n", attributes: {} }];
+let isApplyingRemoteChange = false;
+
+const colorPalette = ['#f56223', '#ffc107', '#00a8ff', '#00b894', '#9b59b6', '#e84393'];
+function getUserColor(siteId) { return colorPalette[siteId % colorPalette.length]; }
+
+function addLog(text, isOwn = false) {
+    const div = document.createElement('div'); div.innerText = text; if(isOwn) div.classList.add('log-own');
+    logPanel.appendChild(div); logPanel.scrollTop = logPanel.scrollHeight;
+}
+
+function generatePosBetween(left, right) {
+    let pos = ""; let i = 0;
+    while (true) {
+        let l = i < left.length ? left.charCodeAt(i) : 96;
+        let r = i < right.length ? right.charCodeAt(i) : 123;
+        if (r - l > 1) { pos += String.fromCharCode(Math.floor((l + r) / 2)); return pos; }
+        else { pos += String.fromCharCode(l); }
+        i++;
     }
-    function updatePlaceholderDeferred() { setTimeout(updatePlaceholder, 0); }
-    quill.on('text-change', updatePlaceholderDeferred);
-    editorEl.addEventListener('compositionstart', () => { placeholderEl.style.display = 'none'; });
-    editorEl.addEventListener('compositionend', updatePlaceholder);
-    editorEl.addEventListener('input', updatePlaceholder);
-    // 捕获 quill-emoji 直接操作 DOM 的情况
-    new MutationObserver(updatePlaceholderDeferred).observe(editorEl, { childList: true, subtree: true, characterData: true });
-    updatePlaceholder();
-    
-    let mySiteId = localStorage.getItem('mySiteId') ? parseInt(localStorage.getItem('mySiteId')) : null; 
-    let myUsername = localStorage.getItem('myUsername') || null; 
-    let myPassword = localStorage.getItem('myPassword') || null;
+}
 
-    let docState = [{ id: "p@0", char: "\n", attributes: {} }]; 
-    let isApplyingRemoteChange = false; 
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+              .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
 
-    const colorPalette = ['#f56223', '#ffc107', '#00a8ff', '#00b894', '#9b59b6', '#e84393'];
-    function getUserColor(siteId) { return colorPalette[siteId % colorPalette.length]; }
+const ws = new WebSocket("ws://39.102.113.202:9002");
 
-    function addLog(text, isOwn = false) {
-        const div = document.createElement('div'); div.innerText = text; if(isOwn) div.classList.add('log-own');
-        logPanel.appendChild(div); logPanel.scrollTop = logPanel.scrollHeight;
-    }
-
-    function generatePosBetween(left, right) {
-        let pos = ""; let i = 0;
-        while (true) {
-            let l = i < left.length ? left.charCodeAt(i) : 96; let r = i < right.length ? right.charCodeAt(i) : 123;
-            if (r - l > 1) { pos += String.fromCharCode(Math.floor((l + r) / 2)); return pos; } else { pos += String.fromCharCode(l); }
-            i++;
-        }
-    }
-
-    function escapeHtml(str) {
-        if (!str) return '';
-        return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-                  .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-    }
-
-    const ws = new WebSocket("ws://39.102.113.202:9002");
-    
-    ws.onopen = () => {
-        if (myUsername && myPassword) {
-            authOverlay.style.display = 'none';
-            statusSpan.innerText = "自动登录中 🟡";
-            addLog("🔗 检测到历史登录状态，正在免密验证...");
-            ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
-        } else {
-            statusSpan.innerText = "已连网，请登录 🟡";
-            addLog("🔗 已连接到服务器，等待身份验证...");
-        }
-    };
-
-    document.getElementById('btn-register').onclick = () => {
-        myUsername = document.getElementById('input-username-reg').value;
-        myPassword = document.getElementById('input-password-reg').value;
-        if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
-        ws.send(JSON.stringify({ type: "register", username: myUsername, password: myPassword }));
-    };
-
-    document.getElementById('btn-login').onclick = () => {
-        myUsername = document.getElementById('input-username').value;
-        myPassword = document.getElementById('input-password').value;
-        if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
+ws.onopen = () => {
+    if (myUsername && myPassword) {
+        authOverlay.style.display = 'none';
+        statusSpan.innerText = "自动登录中 🟡";
+        addLog("🔗 检测到历史登录状态，正在免密验证...");
         ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
-    };
+    } else {
+        statusSpan.innerText = "已连网，请登录 🟡";
+        addLog("🔗 已连接到服务器，等待身份验证...");
+    }
+};
 
-    btnLogout.onclick = () => {
-        if(confirm("确定要退出登录吗？")) {
-            localStorage.clear();
-            location.reload();
+document.getElementById('btn-register').onclick = () => {
+    myUsername = document.getElementById('input-username-reg').value;
+    myPassword = document.getElementById('input-password-reg').value;
+    if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
+    ws.send(JSON.stringify({ type: "register", username: myUsername, password: myPassword }));
+};
+
+document.getElementById('btn-login').onclick = () => {
+    myUsername = document.getElementById('input-username').value;
+    myPassword = document.getElementById('input-password').value;
+    if(!myUsername || !myPassword) return alert("用户名和密码不能为空！");
+    ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
+};
+
+btnLogout.onclick = () => {
+    if(confirm("确定要退出登录吗？")) { localStorage.clear(); location.reload(); }
+};
+
+document.getElementById('btn-leave-room').onclick = () => {
+    localStorage.removeItem('currentRoom');
+    localStorage.removeItem('mySiteId');
+    location.reload();
+};
+
+const roomNameOverlay = document.getElementById('room-name-overlay');
+const inviteTypeOverlay = document.getElementById('invite-type-overlay');
+const inviteTypeHint = document.getElementById('invite-type-hint');
+const genInviteOverlay = document.getElementById('gen-invite-overlay');
+const genInviteCodeDisplay = document.getElementById('gen-invite-code-display');
+const genInviteTypeHint = document.getElementById('gen-invite-type-hint');
+const btnGenInvite = document.getElementById('btn-gen-invite');
+const btnRenameRoom = document.getElementById('btn-rename-room');
+
+btnRenameRoom.onclick = () => {
+    const current = currentRoom ? (currentRoom.room_name || '') : '';
+    const newName = prompt('请输入新的房间名称：', current);
+    if (newName === null) return;
+    if (!newName.trim()) return alert('房间名称不能为空！');
+    ws.send(JSON.stringify({ type: "rename_room", room_name: newName.trim() }));
+};
+
+let isGenInviteMode = false;
+
+document.getElementById('btn-create-room').onclick = () => {
+    roomChoiceOverlay.style.display = 'none';
+    roomNameOverlay.style.display = 'flex';
+    document.getElementById('input-room-name').value = '';
+};
+
+document.getElementById('btn-confirm-room-name').onclick = () => {
+    const name = document.getElementById('input-room-name').value.trim();
+    if (!name) return alert('请输入房间名称！');
+    roomNameOverlay.dataset.roomName = name;
+    roomNameOverlay.style.display = 'none';
+    isGenInviteMode = false;
+    inviteTypeOverlay.style.display = 'flex';
+    document.getElementById('timed-options').style.display = 'none';
+};
+
+document.getElementById('btn-back-from-name').onclick = () => {
+    roomNameOverlay.style.display = 'none';
+    roomChoiceOverlay.style.display = 'flex';
+};
+
+btnGenInvite.onclick = () => {
+    isGenInviteMode = true;
+    inviteTypeOverlay.style.display = 'flex';
+    document.getElementById('timed-options').style.display = 'none';
+};
+
+function sendCreateOrGenInvite(invite_type, extra) {
+    if (isGenInviteMode) {
+        ws.send(JSON.stringify({ type: "gen_invite", invite_type, ...extra }));
+    } else {
+        const room_name = roomNameOverlay.dataset.roomName || '未命名房间';
+        ws.send(JSON.stringify({ type: "create_room", room_name, invite_type, ...extra }));
+    }
+}
+
+document.getElementById('btn-invite-once').onclick = () => {
+    inviteTypeOverlay.style.display = 'none';
+    sendCreateOrGenInvite("once", {});
+};
+
+document.getElementById('btn-invite-timed').onclick = () => {
+    const timedOpts = document.getElementById('timed-options');
+    timedOpts.style.display = timedOpts.style.display === 'none' ? 'flex' : 'none';
+    timedOpts.style.flexDirection = 'column';
+    timedOpts.style.gap = '10px';
+};
+
+document.getElementById('btn-confirm-timed').onclick = () => {
+    const hours = parseInt(document.getElementById('select-hours').value);
+    inviteTypeOverlay.style.display = 'none';
+    sendCreateOrGenInvite("timed", { expire_hours: hours });
+};
+
+document.getElementById('btn-invite-permanent').onclick = () => {
+    inviteTypeOverlay.style.display = 'none';
+    sendCreateOrGenInvite("permanent", {});
+};
+
+document.getElementById('btn-back-room-choice').onclick = () => {
+    inviteTypeOverlay.style.display = 'none';
+    if (isGenInviteMode) return;
+    roomNameOverlay.style.display = 'flex';
+};
+
+document.getElementById('btn-go-back-login').onclick = () => {
+    roomChoiceOverlay.style.display = 'none';
+    authOverlay.style.display = 'flex';
+};
+
+document.getElementById('btn-copy-code').onclick = () => {
+    navigator.clipboard.writeText(inviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
+};
+
+document.getElementById('btn-enter-room').onclick = () => {
+    roomCreatedOverlay.style.display = 'none';
+    statusSpan.innerText = "进入房间中 🟡";
+    docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
+    ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
+};
+
+document.getElementById('btn-copy-gen-code').onclick = () => {
+    navigator.clipboard.writeText(genInviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
+};
+
+document.getElementById('btn-close-gen-invite').onclick = () => {
+    genInviteOverlay.style.display = 'none';
+};
+
+document.getElementById('btn-new-room').onclick = () => {
+    roomCreatedOverlay.style.display = 'none';
+    inviteTypeOverlay.style.display = 'flex';
+    document.getElementById('timed-options').style.display = 'none';
+};
+
+document.getElementById('btn-join-room').onclick = () => {
+    roomChoiceOverlay.style.display = 'none';
+    joinRoomOverlay.style.display = 'flex';
+    inputInviteCode.focus();
+};
+
+document.getElementById('btn-my-rooms').onclick = () => {
+    roomChoiceOverlay.style.display = 'none';
+    myRoomsOverlay.style.display = 'flex';
+    myRoomsList.innerHTML = '';
+    myRoomsLoading.style.display = 'block';
+    ws.send(JSON.stringify({ type: "get_my_rooms" }));
+};
+
+document.getElementById('btn-back-from-my-rooms').onclick = () => {
+    myRoomsOverlay.style.display = 'none';
+    roomChoiceOverlay.style.display = 'flex';
+};
+
+document.getElementById('btn-back-choice').onclick = () => {
+    joinRoomOverlay.style.display = 'none';
+    roomChoiceOverlay.style.display = 'flex';
+    inputInviteCode.value = '';
+};
+
+document.getElementById('btn-join-with-code').onclick = () => {
+    const code = inputInviteCode.value.trim().toUpperCase();
+    if (code.length !== 6) return alert('请输入 6 位邀请码！');
+    ws.send(JSON.stringify({ type: "join_with_code", code: code }));
+};
+
+// shapes: { id, type, x, y, w, h, siteId }
+let shapes = [];
+let selectedShapeId = null;
+let currentTool = null;   // 非 null 表示正在放置模式
+
+// 拖动/缩放状态
+let isDragging = false, isResizing = false;
+let dragOffsetX = 0, dragOffsetY = 0;
+let resizeHandleIdx = -1;
+let resizeStartX = 0, resizeStartY = 0;
+let resizeOrigX = 0, resizeOrigY = 0, resizeOrigW = 0, resizeOrigH = 0;
+// 拖动/缩放开始时的图形快照（用于 mouseup 时广播）
+let dragResizeShapeId = null;
+
+const canvas = document.getElementById('shape-canvas');
+const ctx = canvas.getContext('2d');
+const shapeHint = document.getElementById('shape-hint');
+
+function generateShapeId() {
+    return `sh_${Date.now()}_${mySiteId || 0}_${Math.floor(Math.random()*9999)}`;
+}
+
+function resizeCanvas() {
+    const wrap = document.getElementById('editor-wrap');
+    canvas.width = wrap.clientWidth;
+    canvas.height = wrap.clientHeight;
+    renderShapes();
+}
+new ResizeObserver(resizeCanvas).observe(document.getElementById('editor-wrap'));
+
+function getShapeColor(siteId) { return colorPalette[(siteId || 0) % colorPalette.length]; }
+
+function setShapeHint(msg) {
+    if (!msg) { shapeHint.style.display = 'none'; return; }
+    shapeHint.style.display = 'block';
+    shapeHint.innerText = msg;
+}
+
+// canvas pointer-events 管理：
+// - 放置模式 / 选中状态 / 拖动缩放中：开启
+// - 其他：关闭，让点击穿透到 Quill 编辑器
+// 悬停检测改为在 document 层做，悬停图形时临时开启
+function enableCanvas()  { canvas.style.pointerEvents = 'all'; }
+function disableCanvas() { canvas.style.pointerEvents = 'none'; }
+// 初始关闭
+disableCanvas();
+
+function drawShape(s, selected) {
+    const { type, x, y, w, h, siteId } = s;
+    ctx.save();
+    ctx.strokeStyle = selected ? '#007aff' : getShapeColor(siteId);
+    ctx.lineWidth = selected ? 2.5 : 2;
+    ctx.setLineDash(selected ? [6,3] : []);
+    ctx.beginPath();
+    if (type === 'rect') {
+        ctx.rect(x, y, w, h);
+    } else if (type === 'circle') {
+        ctx.ellipse(x + w/2, y + h/2, Math.abs(w)/2, Math.abs(h)/2, 0, 0, Math.PI*2);
+    } else if (type === 'triangle') {
+        ctx.moveTo(x + w/2, y); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h); ctx.closePath();
+    } else if (type === 'star') {
+        const cx = x + w/2, cy = y + h/2;
+        const R = Math.min(Math.abs(w), Math.abs(h)) / 2;
+        const r = R / 2.4;
+        let rot = -Math.PI / 2;
+        const step = Math.PI / 5;
+        ctx.moveTo(cx + R * Math.cos(rot), cy + R * Math.sin(rot));
+        for (let i = 0; i < 5; i++) {
+            rot += step;
+            ctx.lineTo(cx + r * Math.cos(rot), cy + r * Math.sin(rot));
+            rot += step;
+            ctx.lineTo(cx + R * Math.cos(rot), cy + R * Math.sin(rot));
         }
-    };
+        ctx.closePath();
+    }
+    ctx.stroke();
+    if (selected) {
+        // 四角把手
+        [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([hx,hy]) => {
+            ctx.save();
+            ctx.setLineDash([]);
+            ctx.fillStyle = 'white'; ctx.strokeStyle = '#007aff'; ctx.lineWidth = 2;
+            ctx.fillRect(hx-5, hy-5, 10, 10); ctx.strokeRect(hx-5, hy-5, 10, 10);
+            ctx.restore();
+        });
+    }
+    ctx.restore();
+}
 
-    document.getElementById('btn-leave-room').onclick = () => {
-        // 清除房间记忆，回到房间选择界面，刷新页面重置编辑器状态
-        localStorage.removeItem('currentRoom');
-        localStorage.removeItem('mySiteId');
-        location.reload();
-    };
+function renderShapes() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    shapes.forEach(s => drawShape(s, s.id === selectedShapeId));
+}
 
-    const roomNameOverlay = document.getElementById('room-name-overlay');
-    const inviteTypeOverlay = document.getElementById('invite-type-overlay');
-    const inviteTypeHint = document.getElementById('invite-type-hint');
-    const genInviteOverlay = document.getElementById('gen-invite-overlay');
-    const genInviteCodeDisplay = document.getElementById('gen-invite-code-display');
-    const genInviteTypeHint = document.getElementById('gen-invite-type-hint');
-    const btnGenInvite = document.getElementById('btn-gen-invite');
-    const btnRenameRoom = document.getElementById('btn-rename-room');
+function hitTest(s, px, py, margin = 8) {
+    return px >= s.x - margin && px <= s.x + s.w + margin &&
+           py >= s.y - margin && py <= s.y + s.h + margin;
+}
+function hitHandle(s, px, py) {
+    const corners = [[s.x,s.y],[s.x+s.w,s.y],[s.x,s.y+s.h],[s.x+s.w,s.y+s.h]];
+    for (let i = 0; i < corners.length; i++) {
+        if (Math.abs(px - corners[i][0]) <= 8 && Math.abs(py - corners[i][1]) <= 8) return i;
+    }
+    return -1;
+}
+function canvasPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
 
-    btnRenameRoom.onclick = () => {
-        const current = currentRoom ? (currentRoom.room_name || '') : '';
-        const newName = prompt('请输入新的房间名称：', current);
-        if (newName === null) return; // 取消
-        if (!newName.trim()) return alert('房间名称不能为空！');
-        ws.send(JSON.stringify({ type: "rename_room", room_name: newName.trim() }));
-    };
+function selectShapeTool(type) {
+    selectedShapeId = null;
+    currentTool = type;
+    ['rect','circle','triangle','star'].forEach(t =>
+        document.getElementById('stb-'+t)?.classList.toggle('active', t === type));
+    document.getElementById('stb-cancel').style.display = 'flex';
+    document.getElementById('shape-mode-hint').style.display = 'inline';
+    document.getElementById('shape-mode-hint').innerText = '点击画布放置图形';
+    enableCanvas();
+    canvas.style.cursor = 'crosshair';
+    setShapeHint('点击画布放置图形');
+    renderShapes();
+}
 
-    let isGenInviteMode = false; // true=进房后生成邀请码, false=创建房间
+function cancelShapeTool() {
+    currentTool = null;
+    selectedShapeId = null;
+    ['rect','circle','triangle','star'].forEach(t =>
+        document.getElementById('stb-'+t)?.classList.remove('active'));
+    document.getElementById('stb-cancel').style.display = 'none';
+    document.getElementById('shape-mode-hint').style.display = 'none';
+    canvas.style.cursor = 'default';
+    setShapeHint('');
+    disableCanvas();
+    renderShapes();
+}
 
-    document.getElementById('btn-create-room').onclick = () => {
-        roomChoiceOverlay.style.display = 'none';
-        roomNameOverlay.style.display = 'flex';
-        document.getElementById('input-room-name').value = '';
-    };
+// document 层 mousemove：悬停图形时临时开启 canvas，让光标和点击正常工作
+document.addEventListener('mousemove', (e) => {
+    if (currentTool || isDragging || isResizing || selectedShapeId) return;
+    if (!shapes.length) return;
 
-    document.getElementById('btn-confirm-room-name').onclick = () => {
-        const name = document.getElementById('input-room-name').value.trim();
-        if (!name) return alert('请输入房间名称！');
-        roomNameOverlay.dataset.roomName = name;
-        roomNameOverlay.style.display = 'none';
-        isGenInviteMode = false;
-        inviteTypeOverlay.style.display = 'flex';
-        document.getElementById('timed-options').style.display = 'none';
-    };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
 
-    document.getElementById('btn-back-from-name').onclick = () => {
-        roomNameOverlay.style.display = 'none';
-        roomChoiceOverlay.style.display = 'flex';
-    };
+    const onShape = shapes.some(s => hitTest(s, x, y));
+    if (onShape) {
+        enableCanvas();
+        canvas.style.cursor = 'grab';
+    } else {
+        disableCanvas();
+    }
+});
 
-    // 进房后随时生成邀请码
-    btnGenInvite.onclick = () => {
-        isGenInviteMode = true;
-        inviteTypeOverlay.style.display = 'flex';
-        document.getElementById('timed-options').style.display = 'none';
-    };
+canvas.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const { x, y } = canvasPos(e);
 
-    function sendCreateOrGenInvite(invite_type, extra) {
-        if (isGenInviteMode) {
-            ws.send(JSON.stringify({ type: "gen_invite", invite_type, ...extra }));
-        } else {
-            const room_name = roomNameOverlay.dataset.roomName || '未命名房间';
-            ws.send(JSON.stringify({ type: "create_room", room_name, invite_type, ...extra }));
+    // 放置模式：点击立即放置并选中
+    if (currentTool) {
+        const s = {
+            id: generateShapeId(), type: currentTool,
+            x: x - 60, y: y - 40, w: 120, h: 80,
+            siteId: mySiteId || 0
+        };
+        shapes.push(s);
+        ws.send(JSON.stringify({ type: "shape_add", shape: s }));
+        addLog(`➕ 插入图形 [${s.type}]`, true);
+        selectedShapeId = s.id;
+        currentTool = null;
+        ['rect','circle','triangle','star'].forEach(t =>
+            document.getElementById('stb-'+t)?.classList.remove('active'));
+        document.getElementById('stb-cancel').style.display = 'none';
+        document.getElementById('shape-mode-hint').style.display = 'none';
+        enableCanvas();
+        canvas.style.cursor = 'grab';
+        setShapeHint('拖动移动 · 拖角点缩放 · 双击删除 · 点击空白取消选中');
+        renderShapes();
+        updateTextWrap();
+        return;
+    }
+
+    // 已选中图形：检查把手和图形体
+    if (selectedShapeId) {
+        const sel = shapes.find(s => s.id === selectedShapeId);
+        if (sel) {
+            const hi = hitHandle(sel, x, y);
+            if (hi !== -1) {
+                isResizing = true;
+                resizeHandleIdx = hi;
+                resizeStartX = x; resizeStartY = y;
+                resizeOrigX = sel.x; resizeOrigY = sel.y;
+                resizeOrigW = sel.w; resizeOrigH = sel.h;
+                dragResizeShapeId = sel.id;
+                canvas.style.cursor = 'nwse-resize';
+                return;
+            }
+            if (hitTest(sel, x, y)) {
+                isDragging = true;
+                dragOffsetX = x - sel.x;
+                dragOffsetY = y - sel.y;
+                dragResizeShapeId = sel.id;
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
         }
     }
 
-    document.getElementById('btn-invite-once').onclick = () => {
-        inviteTypeOverlay.style.display = 'none';
-        sendCreateOrGenInvite("once", {});
-    };
+    // 点击其他图形
+    let found = null;
+    for (let i = shapes.length - 1; i >= 0; i--) {
+        if (hitTest(shapes[i], x, y)) { found = shapes[i]; break; }
+    }
+    if (found) {
+        selectedShapeId = found.id;
+        enableCanvas();
+        canvas.style.cursor = 'grab';
+        setShapeHint('拖动移动 · 拖角点缩放 · 双击删除 · 点击空白取消选中');
+        renderShapes();
+    } else {
+        // 点击空白：取消选中，关闭 canvas，让焦点回到编辑器
+        selectedShapeId = null;
+        disableCanvas();
+        canvas.style.cursor = 'default';
+        setShapeHint('');
+        renderShapes();
+    }
+});
 
-    document.getElementById('btn-invite-timed').onclick = () => {
-        const timedOpts = document.getElementById('timed-options');
-        timedOpts.style.display = timedOpts.style.display === 'none' ? 'flex' : 'none';
-        timedOpts.style.flexDirection = 'column';
-        timedOpts.style.gap = '10px';
-    };
+canvas.addEventListener('mousemove', (e) => {
+    const { x, y } = canvasPos(e);
 
-    document.getElementById('btn-confirm-timed').onclick = () => {
-        const hours = parseInt(document.getElementById('select-hours').value);
-        inviteTypeOverlay.style.display = 'none';
-        sendCreateOrGenInvite("timed", { expire_hours: hours });
-    };
+    if (isDragging && dragResizeShapeId) {
+        const s = shapes.find(s => s.id === dragResizeShapeId);
+        if (s) { s.x = x - dragOffsetX; s.y = y - dragOffsetY; renderShapes(); }
+        return;
+    }
+    if (isResizing && dragResizeShapeId) {
+        const s = shapes.find(s => s.id === dragResizeShapeId);
+        if (s) {
+            const dx = x - resizeStartX, dy = y - resizeStartY;
+            const hi = resizeHandleIdx;
+            if (hi === 3) { s.w = Math.max(20, resizeOrigW+dx); s.h = Math.max(20, resizeOrigH+dy); }
+            else if (hi === 1) { s.w = Math.max(20, resizeOrigW+dx); s.y = resizeOrigY+dy; s.h = Math.max(20, resizeOrigH-dy); }
+            else if (hi === 2) { s.x = resizeOrigX+dx; s.w = Math.max(20, resizeOrigW-dx); s.h = Math.max(20, resizeOrigH+dy); }
+            else if (hi === 0) { s.x = resizeOrigX+dx; s.y = resizeOrigY+dy; s.w = Math.max(20, resizeOrigW-dx); s.h = Math.max(20, resizeOrigH-dy); }
+            renderShapes();
+        }
+        return;
+    }
 
-    document.getElementById('btn-invite-permanent').onclick = () => {
-        inviteTypeOverlay.style.display = 'none';
-        sendCreateOrGenInvite("permanent", {});
-    };
+    // 选中状态下更新光标
+    if (selectedShapeId && !currentTool) {
+        const sel = shapes.find(s => s.id === selectedShapeId);
+        if (sel) {
+            canvas.style.cursor = hitHandle(sel, x, y) !== -1 ? 'nwse-resize' : 'grab';
+        }
+    }
+});
 
-    document.getElementById('btn-back-room-choice').onclick = () => {
-        inviteTypeOverlay.style.display = 'none';
-        if (isGenInviteMode) return; // 进房后取消直接关闭
-        roomNameOverlay.style.display = 'flex';
-    };
+canvas.addEventListener('mouseup', (e) => {
+    if ((isDragging || isResizing) && dragResizeShapeId) {
+        const s = shapes.find(s => s.id === dragResizeShapeId);
+        if (s) {
+            ws.send(JSON.stringify({ type: "shape_move", id: s.id, x: s.x, y: s.y, w: s.w, h: s.h }));
+            updateTextWrap();
+        }
+    }
+    isDragging = false;
+    isResizing = false;
+    resizeHandleIdx = -1;
+    dragResizeShapeId = null;
+    if (!currentTool) canvas.style.cursor = selectedShapeId ? 'grab' : 'default';
+});
 
-    document.getElementById('btn-go-back-login').onclick = () => {
-        roomChoiceOverlay.style.display = 'none';
-        authOverlay.style.display = 'flex';
-    };
-
-    document.getElementById('btn-copy-code').onclick = () => {
-        navigator.clipboard.writeText(inviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
-    };
-
-    document.getElementById('btn-enter-room').onclick = () => {
-        roomCreatedOverlay.style.display = 'none';
-        statusSpan.innerText = "进入房间中 🟡";
-        docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
-        ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
-    };
-
-    document.getElementById('btn-copy-gen-code').onclick = () => {
-        navigator.clipboard.writeText(genInviteCodeDisplay.innerText).then(() => alert('邀请码已复制！'));
-    };
-
-    document.getElementById('btn-close-gen-invite').onclick = () => {
-        genInviteOverlay.style.display = 'none';
-    };
-
-    document.getElementById('btn-new-room').onclick = () => {
-        roomCreatedOverlay.style.display = 'none';
-        inviteTypeOverlay.style.display = 'flex';
-        document.getElementById('timed-options').style.display = 'none';
-    };
-
-    document.getElementById('btn-join-room').onclick = () => {
-        roomChoiceOverlay.style.display = 'none';
-        joinRoomOverlay.style.display = 'flex';
-        inputInviteCode.focus();
-    };
-
-    document.getElementById('btn-my-rooms').onclick = () => {
-        roomChoiceOverlay.style.display = 'none';
-        myRoomsOverlay.style.display = 'flex';
-        myRoomsList.innerHTML = '';
-        myRoomsLoading.style.display = 'block';
-        ws.send(JSON.stringify({ type: "get_my_rooms" }));
-    };
-
-    document.getElementById('btn-back-from-my-rooms').onclick = () => {
-        myRoomsOverlay.style.display = 'none';
-        roomChoiceOverlay.style.display = 'flex';
-    };
-
-    document.getElementById('btn-back-choice').onclick = () => {
-        joinRoomOverlay.style.display = 'none';
-        roomChoiceOverlay.style.display = 'flex';
-        inputInviteCode.value = '';
-    };
-
-    document.getElementById('btn-join-with-code').onclick = () => {
-        const code = inputInviteCode.value.trim().toUpperCase();
-        if (code.length !== 6) return alert('请输入 6 位邀请码！');
-        ws.send(JSON.stringify({ type: "join_with_code", code: code }));
-    };
-
-    ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        
-        if (data.type === "kicked") {
-            alert(data.msg);
-            localStorage.clear();
-            location.reload();
+canvas.addEventListener('dblclick', (e) => {
+    const { x, y } = canvasPos(e);
+    for (let i = shapes.length - 1; i >= 0; i--) {
+        if (hitTest(shapes[i], x, y)) {
+            const { id, type } = shapes[i];
+            shapes.splice(i, 1);
+            selectedShapeId = null;
+            ws.send(JSON.stringify({ type: "shape_delete", id }));
+            addLog(`🗑️ 删除图形 [${type}]`, true);
+            disableCanvas();
+            canvas.style.cursor = 'default';
+            setShapeHint('');
+            renderShapes();
+            updateTextWrap();
             return;
         }
+    }
+});
 
-        if (data.type === "register_res") {
-            alert(data.msg);
-            if (data.success !== false) switchTab('login');
-        } 
-        else if (data.type === "login_res") {
-            if (data.success) {
-                authOverlay.style.display = 'none';
-                btnLogout.style.display = 'inline-block';
+function updateTextWrap() {
+    if (!shapes.length) {
+        editorEl.querySelectorAll('p, h1, h2, h3, li').forEach(line => {
+            line.style.paddingLeft = '';
+            line.style.paddingRight = '';
+            line.style.boxSizing = '';
+        });
+        return;
+    }
 
-                localStorage.setItem('myUsername', myUsername);
-                localStorage.setItem('myPassword', myPassword);
+    // editorEl 是 .ql-editor，相对于 editor-wrap 有一定偏移
+    const wrapRect = document.getElementById('editor-wrap').getBoundingClientRect();
+    const editorRect = editorEl.getBoundingClientRect();
+    const editorScrollTop = editorEl.scrollTop;
+    const editorWidth = editorRect.width;
 
-                siteDisplay.innerText = `👤 ${myUsername}`;
-                addLog(`✅ 登录成功！欢迎回来，${myUsername}！`, true);
+    const PADDING = 6; // 文字和图形之间最小间距
 
-                if (currentRoom) {
-                    // 自动重新加入上次的房间
-                    statusSpan.innerText = "重新加入房间中 🟡";
-                    addLog(`🔄 正在自动返回房间「${currentRoom.room_name || currentRoom.doc_id}」...`);
-                    ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
-                } else {
-                    statusSpan.innerText = "已登录，选择房间 🟡";
-                    roomChoiceOverlay.style.display = 'flex';
-                }
+    const lines = editorEl.querySelectorAll('p, h1, h2, h3, li');
+    lines.forEach(line => {
+        const lineRect = line.getBoundingClientRect();
+
+        const lineTopInWrap    = lineRect.top    - wrapRect.top + editorScrollTop;
+        const lineBottomInWrap = lineRect.bottom - wrapRect.top + editorScrollTop;
+
+        let leftBlock  = 0;  // 行左侧需要让出的宽度（图形占据左侧）
+        let rightBlock = 0;  // 行右侧需要让出的宽度（图形占据右侧）
+
+        shapes.forEach(s => {
+    
+            const shapeTop    = s.y;
+            const shapeBottom = s.y + s.h;
+            const shapeLeft   = s.x;
+            const shapeRight  = s.x + s.w;
+
+            const vertOverlap = lineTopInWrap < shapeBottom - 1 && lineBottomInWrap > shapeTop + 1;
+            if (!vertOverlap) return;
+
+            const editorLeft  = editorRect.left - wrapRect.left;
+            const editorRight = editorLeft + editorWidth;
+            const shapeCenterX = shapeLeft + s.w / 2;
+            const editorCenterX = editorLeft + editorWidth / 2;
+
+            if (shapeCenterX <= editorCenterX) {
+                const needed = shapeRight - editorLeft + PADDING;
+                if (needed > leftBlock) leftBlock = needed;
             } else {
-                alert(data.msg);
-                authOverlay.style.display = 'flex';
-                localStorage.clear();
-            }
-        }
-        else if (data.type === "create_room_res") {
-            if (data.success) {
-                currentRoom = { doc_id: data.doc_id, code: data.code, room_name: data.room_name };
-                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
-                roomChoiceOverlay.style.display = 'none';
-                inviteTypeOverlay.style.display = 'none';
-                inviteCodeDisplay.innerText = data.code;
-
-                const hints = {
-                    once: '仅限一次使用，用完即失效',
-                    timed: data.expires_at ? `有效至 ${new Date(data.expires_at * 1000).toLocaleString()}` : '限时有效',
-                    permanent: '永久有效，可无限次使用'
-                };
-                inviteTypeHint.innerText = hints[data.invite_type] || '';
-
-                roomCreatedOverlay.style.display = 'flex';
-                addLog(`🎉 房间「${data.room_name}」已创建，邀请码: ${data.code}`, true);
-            } else {
-                alert(data.msg);
-            }
-        }
-        else if (data.type === "gen_invite_res") {
-            if (data.success) {
-                genInviteCodeDisplay.innerText = data.code;
-                const hints = {
-                    once: '仅限一次使用，用完即失效',
-                    timed: data.expires_at ? `有效至 ${new Date(data.expires_at * 1000).toLocaleString()}` : '限时有效',
-                    permanent: '永久有效，可无限次使用'
-                };
-                genInviteTypeHint.innerText = hints[data.invite_type] || '';
-                genInviteOverlay.style.display = 'flex';
-                addLog(`🔑 新邀请码已生成: ${data.code}`, true);
-            } else {
-                alert(data.msg || '生成邀请码失败');
-            }
-        }
-        else if (data.type === "join_with_code_res") {
-            if (data.success) {
-                currentRoom = { doc_id: data.doc_id, room_name: data.room_name };
-                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
-                joinRoomOverlay.style.display = 'none';
-                statusSpan.innerText = "进入房间中 🟡";
-                docDisplay.innerText = `📄 ${data.room_name || data.doc_id}`;
-                ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
-            } else {
-                alert(data.msg);
-                inputInviteCode.value = '';
-            }
-        }
-        else if (data.type === "get_my_rooms_res") {
-            myRoomsLoading.style.display = 'none';
-            if (!data.success) {
-                myRoomsList.innerHTML = `<p class="flow-hint" style="color:#ff3b30;">${escapeHtml(data.msg || '加载失败')}</p>`;
-                return;
-            }
-            if (!data.rooms || data.rooms.length === 0) {
-                myRoomsList.innerHTML = '<p class="flow-hint">暂无历史房间记录</p>';
-                return;
-            }
-            // 统计重名，给重名项加 (1)(2) 后缀
-            const nameCount = {};
-            const nameIndex = {};
-            data.rooms.forEach(r => { nameCount[r.room_name] = (nameCount[r.room_name] || 0) + 1; });
-            data.rooms.forEach(room => {
-                let displayName = room.room_name;
-                if (nameCount[room.room_name] > 1) {
-                    nameIndex[room.room_name] = (nameIndex[room.room_name] || 0) + 1;
-                    displayName = `${room.room_name}(${nameIndex[room.room_name]})`;
-                }
-                const card = document.createElement('div');
-                card.className = 'room-card';
-                const joinedDate  = room.joined_at  ? new Date(room.joined_at  * 1000).toLocaleDateString('zh-CN') : '未知';
-                const createdDate = room.created_at && room.created_at > 0
-                    ? new Date(room.created_at * 1000).toLocaleDateString('zh-CN') : '未知';
-                card.innerHTML = `
-                    <div class="room-card-name">${escapeHtml(displayName)}</div>
-                    <div class="room-card-meta">
-                        <span>创建者: ${escapeHtml(room.created_by || '未知')}</span>
-                        <span>创建于: ${createdDate}</span>
-                        <span>你加入于: ${joinedDate}</span>
-                    </div>`;
-                card.onclick = () => {
-                    myRoomsOverlay.style.display = 'none';
-                    currentRoom = { doc_id: room.doc_id, room_name: room.room_name };
-                    localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
-                    statusSpan.innerText = "进入房间中 🟡";
-                    docDisplay.innerText = `📄 ${room.room_name || room.doc_id}`;
-                    ws.send(JSON.stringify({ type: "rejoin_room", doc_id: room.doc_id, requested_site_id: mySiteId || 0 }));
-                };
-                myRoomsList.appendChild(card);
-            });
-        }
-        else if (data.type === "rejoin_room_res") {
-            // 仅在失败时发送
-            alert(data.msg || '重新加入房间失败');
-            myRoomsOverlay.style.display = 'flex';
-        }
-        else if (data.type === "rename_room_res") {
-            if (data.success) {
-                currentRoom.room_name = data.room_name;
-                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
-                docDisplay.innerText = `📄 ${data.room_name}`;
-                addLog(`✏️ 房间已重命名为「${data.room_name}」`, true);
-            } else {
-                alert(data.msg);
-            }
-        }
-        else if (data.type === "get_room_members_res") {
-            const list = document.getElementById('members-list');
-            if (!data.success || !data.members || data.members.length === 0) {
-                list.innerHTML = '<div class="member-item" style="color:#8a8a9a;">暂无成员记录</div>';
-            } else {
-                const statusOrder = { in_room: 0, online: 1, offline: 2 };
-                const statusLabel = { in_room: '在本房间', online: '在线', offline: '离线' };
-                const statusClass = { in_room: 'in-room', online: 'online', offline: 'offline' };
-                const owner = data.members.find(m => m.is_owner);
-                const others = data.members.filter(m => !m.is_owner)
-                    .sort((a, b) => (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3));
-                const sorted = owner ? [owner, ...others] : others;
-                list.innerHTML = sorted.map(m => `
-                    <div class="member-item">
-                        <span class="member-dot ${statusClass[m.status] || 'offline'}"></span>
-                        <span>${escapeHtml(m.username)}${m.is_owner ? ' <span class="member-owner-tag">创建者</span>' : ''}</span>
-                        <span class="member-status-label">${statusLabel[m.status] || '离线'}</span>
-                    </div>`).join('');
-            }
-        }
-        else if (data.type === "init") {
-            mySiteId = data.site_id;
-            localStorage.setItem('mySiteId', mySiteId);
-            // 用服务端返回的 room_name 更新并持久化 currentRoom
-            if (data.room_name && currentRoom) {
-                currentRoom.room_name = data.room_name;
-                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
-            }
-            statusSpan.innerText = "已进入房间 🟢"; statusSpan.classList.remove('waiting'); statusSpan.classList.add('online');
-            if (currentRoom) docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
-            siteDisplay.innerText = `👤 ${myUsername} (Site: ${mySiteId})`;
-            btnGenInvite.style.display = 'inline-flex';
-            btnRenameRoom.style.display = 'inline-flex';
-            document.getElementById('btn-leave-room').style.display = 'inline-flex';
-            document.getElementById('btn-members').style.display = 'inline-flex';
-        } else if (data.type === "presence") {
-            addLog(`⚡️ [房间广播] ${data.username || data.site_id} 进入了文档`);
-        } else if (data.type === "cursor") {
-            if (data.site_id === mySiteId) return; 
-            let relativeIndex = 0;
-            if (data.anchorId !== "start") {
-                const foundIndex = docState.findIndex(item => item.id === data.anchorId);
-                if (foundIndex !== -1) relativeIndex = foundIndex + 1;
-            }
-            const remoteName = data.username ? data.username : `神秘人 ${data.site_id}`;
-            cursorsModule.createCursor(data.site_id.toString(), remoteName, getUserColor(data.site_id));
-            cursorsModule.moveCursor(data.site_id.toString(), { index: relativeIndex, length: data.length });
-        } else if (data.type === "insert") {
-            isApplyingRemoteChange = true; 
-            docState.push({ id: data.id, char: data.char, attributes: data.attributes || {} });
-            docState.sort((a, b) => a.id.localeCompare(b.id)); 
-            const relativeIndex = docState.findIndex(item => item.id === data.id);
-            if (typeof data.char === 'string') {
-                if (data.char.length > 0) quill.insertText(relativeIndex, data.char, data.attributes || {}, 'silent'); 
-            } else {
-                const embedType = Object.keys(data.char)[0]; const embedValue = data.char[embedType];     
-                quill.insertEmbed(relativeIndex, embedType, embedValue, 'silent');
-            }
-            isApplyingRemoteChange = false; 
-        } else if (data.type === "delete") {
-            isApplyingRemoteChange = true;
-            const targetIndex = docState.findIndex(item => item.id === data.id);
-            if (targetIndex !== -1) {
-                const deletedItem = docState.splice(targetIndex, 1)[0];
-                const delLen = typeof deletedItem.char === 'string' ? deletedItem.char.length : 1;
-                if (delLen > 0) quill.deleteText(targetIndex, delLen, 'silent');
-            }
-            isApplyingRemoteChange = false;
-        } else if (data.type === "format") {
-            isApplyingRemoteChange = true;
-            const targetIndex = docState.findIndex(item => item.id === data.id);
-            if (targetIndex !== -1) {
-                const formatItem = docState[targetIndex];
-                if (data.value === null || data.value === false) delete formatItem.attributes[data.key];
-                else formatItem.attributes[data.key] = data.value;
-                const formatLen = typeof formatItem.char === 'string' ? formatItem.char.length : 1;
-                if (formatLen > 0) quill.formatText(targetIndex, formatLen, data.key, data.value, 'silent');
-            }
-            isApplyingRemoteChange = false;
-        }
-    };
-
-    // 成员面板
-    const btnMembers = document.getElementById('btn-members');
-    const membersPanel = document.getElementById('members-panel');
-    const membersList = document.getElementById('members-list');
-
-    btnMembers.onclick = (e) => {
-        e.stopPropagation();
-        const isOpen = membersPanel.classList.contains('open');
-        if (isOpen) {
-            membersPanel.classList.remove('open');
-        } else {
-            const rect = btnMembers.getBoundingClientRect();
-            membersPanel.style.top = (rect.bottom + 6) + 'px';
-            membersPanel.style.left = rect.left + 'px';
-            membersList.innerHTML = '<div class="member-item" style="color:#8a8a9a;">加载中...</div>';
-            membersPanel.classList.add('open');
-            ws.send(JSON.stringify({ type: "get_room_members" }));
-        }
-    };
-
-    document.addEventListener('click', (e) => {
-        if (!membersPanel.contains(e.target) && e.target !== btnMembers) {
-            membersPanel.classList.remove('open');
-        }
-    });
-
-    quill.on('selection-change', (range, oldRange, source) => {
-        if (range && mySiteId) {
-            let anchorId = "start";
-            if (range.index > 0 && range.index <= docState.length) anchorId = docState[range.index - 1].id;
-            ws.send(JSON.stringify({ type: "cursor", site_id: mySiteId, username: myUsername, anchorId: anchorId, length: range.length }));
-        }
-    });
-
-    quill.on('text-change', (delta, oldDelta, source) => {
-        if (source === 'silent' || !mySiteId || isApplyingRemoteChange) return;
-        let currentIndex = 0; 
-        delta.ops.forEach(op => {
-            if (op.retain) {
-                if (op.attributes) {
-                    const attrKeys = Object.keys(op.attributes);
-                    for (let i = 0; i < op.retain; i++) {
-                        const targetRelIndex = currentIndex + i; if (targetRelIndex >= docState.length) break;
-                        const charItem = docState[targetRelIndex];
-                        attrKeys.forEach(key => {
-                            const val = op.attributes[key];
-                            if (val === null || val === false) delete charItem.attributes[key]; else charItem.attributes[key] = val;
-                            ws.send(JSON.stringify({ type: "format", id: charItem.id, key: key, value: val }));
-                        });
-                    }
-                }
-                currentIndex += op.retain;
-            } else if (op.insert) {
-                let itemsToInsert = [];
-                if (typeof op.insert === 'string') {
-                    const segmenter = new Intl.Segmenter('zh-CN', { granularity: 'grapheme' });
-                    const chars = Array.from(segmenter.segment(op.insert)).map(s => s.segment);
-                    chars.forEach(c => { itemsToInsert.push(c); for(let i = 1; i < c.length; i++) itemsToInsert.push(""); });
-                } else { itemsToInsert = [op.insert]; }
-
-                for (let i = 0; i < itemsToInsert.length; i++) {
-                    const item = itemsToInsert[i];
-                    const leftId = currentIndex > 0 ? docState[currentIndex - 1].id.split('@')[0] : "";
-                    const rightId = currentIndex < docState.length ? docState[currentIndex].id.split('@')[0] : "";
-                    const absoluteId = `${generatePosBetween(leftId, rightId)}@${mySiteId}`;
-                    const attrs = op.attributes || {};
-                    docState.splice(currentIndex, 0, { id: absoluteId, char: item, attributes: attrs }); 
-                    ws.send(JSON.stringify({ type: "insert", id: absoluteId, char: item, attributes: attrs }));
-                    currentIndex++; 
-                }
-            } else if (op.delete) {
-                for (let i = 0; i < op.delete; i++) {
-                    if (currentIndex < docState.length) {
-                        const delId = docState[currentIndex].id; docState.splice(currentIndex, 1);
-                        ws.send(JSON.stringify({ type: "delete", id: delId }));
-                    }
-                }
+                const needed = editorRight - shapeLeft + PADDING;
+                if (needed > rightBlock) rightBlock = needed;
             }
         });
+
+        line.style.transition = 'padding-left 0.12s, padding-right 0.12s';
+        line.style.boxSizing = 'border-box';
+        line.style.paddingLeft  = leftBlock  > 0 ? Math.max(0, leftBlock)  + 'px' : '';
+        line.style.paddingRight = rightBlock > 0 ? Math.max(0, rightBlock) + 'px' : '';
     });
+}
+
+// 监听编辑器内容变化，更新文字环绕
+quill.on('text-change', () => { setTimeout(updateTextWrap, 50); });
+// 编辑器滚动时也重新计算（shape.y 固定，行的视口位置随滚动变化）
+editorEl.addEventListener('scroll', () => { updateTextWrap(); });
+
+document.addEventListener('keydown', (e) => {
+    if ((e.key === 'Delete' || e.key === 'Backspace') && selectedShapeId && !isDragging && !isResizing) {
+        // 仅当焦点不在编辑器内时触发
+        if (document.activeElement === document.body || document.activeElement === canvas) {
+            const idx = shapes.findIndex(s => s.id === selectedShapeId);
+            if (idx !== -1) {
+                ws.send(JSON.stringify({ type: "shape_delete", id: selectedShapeId }));
+                shapes.splice(idx, 1);
+                selectedShapeId = null;
+                canvas.style.cursor = 'default';
+                setShapeHint('');
+                disableCanvas();
+                renderShapes();
+                updateTextWrap();
+            }
+        }
+    }
+    if (e.key === 'Escape') {
+        if (currentTool) {
+            cancelShapeTool();
+        }
+    }
+});
+
+function applyRemoteShape(data) {
+    if (data.type === 'shape_add') {
+        if (!shapes.find(s => s.id === data.shape.id)) {
+            shapes.push(data.shape);
+            renderShapes();
+            updateTextWrap();
+        }
+    } else if (data.type === 'shape_move') {
+        const s = shapes.find(s => s.id === data.id);
+        if (s) { s.x = data.x; s.y = data.y; s.w = data.w; s.h = data.h; renderShapes(); updateTextWrap(); }
+    } else if (data.type === 'shape_delete') {
+        const idx = shapes.findIndex(s => s.id === data.id);
+        if (idx !== -1) {
+            shapes.splice(idx, 1);
+            renderShapes();
+            updateTextWrap();
+        }
+    }
+}
+
+ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.type === "kicked") {
+        alert(data.msg);
+        localStorage.clear();
+        location.reload();
+        return;
+    }
+
+    // 图形消息直接处理
+    if (['shape_add','shape_move','shape_delete'].includes(data.type)) {
+        applyRemoteShape(data);
+        return;
+    }
+
+    if (data.type === "register_res") {
+        alert(data.msg);
+        if (data.success !== false) switchTab('login');
+    }
+    else if (data.type === "login_res") {
+        if (data.success) {
+            authOverlay.style.display = 'none';
+            btnLogout.style.display = 'inline-block';
+            localStorage.setItem('myUsername', myUsername);
+            localStorage.setItem('myPassword', myPassword);
+            siteDisplay.innerText = `👤 ${myUsername}`;
+            addLog(`✅ 登录成功！欢迎回来，${myUsername}！`, true);
+            if (currentRoom) {
+                statusSpan.innerText = "重新加入房间中 🟡";
+                addLog(`🔄 正在自动返回房间「${currentRoom.room_name || currentRoom.doc_id}」...`);
+                ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
+            } else {
+                statusSpan.innerText = "已登录，选择房间 🟡";
+                roomChoiceOverlay.style.display = 'flex';
+            }
+        } else {
+            alert(data.msg);
+            authOverlay.style.display = 'flex';
+            localStorage.clear();
+        }
+    }
+    else if (data.type === "create_room_res") {
+        if (data.success) {
+            currentRoom = { doc_id: data.doc_id, code: data.code, room_name: data.room_name };
+            localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+            roomChoiceOverlay.style.display = 'none';
+            inviteTypeOverlay.style.display = 'none';
+            inviteCodeDisplay.innerText = data.code;
+            const hints = {
+                once: '仅限一次使用，用完即失效',
+                timed: data.expires_at ? `有效至 ${new Date(data.expires_at * 1000).toLocaleString()}` : '限时有效',
+                permanent: '永久有效，可无限次使用'
+            };
+            inviteTypeHint.innerText = hints[data.invite_type] || '';
+            roomCreatedOverlay.style.display = 'flex';
+            addLog(`🎉 房间「${data.room_name}」已创建，邀请码: ${data.code}`, true);
+        } else {
+            alert(data.msg);
+        }
+    }
+    else if (data.type === "gen_invite_res") {
+        if (data.success) {
+            genInviteCodeDisplay.innerText = data.code;
+            const hints = {
+                once: '仅限一次使用，用完即失效',
+                timed: data.expires_at ? `有效至 ${new Date(data.expires_at * 1000).toLocaleString()}` : '限时有效',
+                permanent: '永久有效，可无限次使用'
+            };
+            genInviteTypeHint.innerText = hints[data.invite_type] || '';
+            genInviteOverlay.style.display = 'flex';
+            addLog(`🔑 新邀请码已生成: ${data.code}`, true);
+        } else {
+            alert(data.msg || '生成邀请码失败');
+        }
+    }
+    else if (data.type === "join_with_code_res") {
+        if (data.success) {
+            currentRoom = { doc_id: data.doc_id, room_name: data.room_name };
+            localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+            joinRoomOverlay.style.display = 'none';
+            statusSpan.innerText = "进入房间中 🟡";
+            docDisplay.innerText = `📄 ${data.room_name || data.doc_id}`;
+            ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
+        } else {
+            alert(data.msg);
+            inputInviteCode.value = '';
+        }
+    }
+    else if (data.type === "get_my_rooms_res") {
+        myRoomsLoading.style.display = 'none';
+        if (!data.success) {
+            myRoomsList.innerHTML = `<p class="flow-hint" style="color:#ff3b30;">${escapeHtml(data.msg || '加载失败')}</p>`;
+            return;
+        }
+        if (!data.rooms || data.rooms.length === 0) {
+            myRoomsList.innerHTML = '<p class="flow-hint">暂无历史房间记录</p>';
+            return;
+        }
+        const nameCount = {};
+        const nameIndex = {};
+        data.rooms.forEach(r => { nameCount[r.room_name] = (nameCount[r.room_name] || 0) + 1; });
+        data.rooms.forEach(room => {
+            let displayName = room.room_name;
+            if (nameCount[room.room_name] > 1) {
+                nameIndex[room.room_name] = (nameIndex[room.room_name] || 0) + 1;
+                displayName = `${room.room_name}(${nameIndex[room.room_name]})`;
+            }
+            const card = document.createElement('div');
+            card.className = 'room-card';
+            const joinedDate  = room.joined_at  ? new Date(room.joined_at  * 1000).toLocaleDateString('zh-CN') : '未知';
+            const createdDate = room.created_at && room.created_at > 0
+                ? new Date(room.created_at * 1000).toLocaleDateString('zh-CN') : '未知';
+            card.innerHTML = `
+                <div class="room-card-name">${escapeHtml(displayName)}</div>
+                <div class="room-card-meta">
+                    <span>创建者: ${escapeHtml(room.created_by || '未知')}</span>
+                    <span>创建于: ${createdDate}</span>
+                    <span>你加入于: ${joinedDate}</span>
+                </div>`;
+            card.onclick = () => {
+                myRoomsOverlay.style.display = 'none';
+                currentRoom = { doc_id: room.doc_id, room_name: room.room_name };
+                localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+                statusSpan.innerText = "进入房间中 🟡";
+                docDisplay.innerText = `📄 ${room.room_name || room.doc_id}`;
+                ws.send(JSON.stringify({ type: "rejoin_room", doc_id: room.doc_id, requested_site_id: mySiteId || 0 }));
+            };
+            myRoomsList.appendChild(card);
+        });
+    }
+    else if (data.type === "rejoin_room_res") {
+        alert(data.msg || '重新加入房间失败');
+        myRoomsOverlay.style.display = 'flex';
+    }
+    else if (data.type === "rename_room_res") {
+        if (data.success) {
+            currentRoom.room_name = data.room_name;
+            localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+            docDisplay.innerText = `📄 ${data.room_name}`;
+            addLog(`✏️ 房间已重命名为「${data.room_name}」`, true);
+        } else {
+            alert(data.msg);
+        }
+    }
+    else if (data.type === "get_room_members_res") {
+        const list = document.getElementById('members-list');
+        if (!data.success || !data.members || data.members.length === 0) {
+            list.innerHTML = '<div class="member-item" style="color:#8a8a9a;">暂无成员记录</div>';
+        } else {
+            const statusOrder = { in_room: 0, online: 1, offline: 2 };
+            const statusLabel = { in_room: '在本房间', online: '在线', offline: '离线' };
+            const statusClass = { in_room: 'in-room', online: 'online', offline: 'offline' };
+            const owner = data.members.find(m => m.is_owner);
+            const others = data.members.filter(m => !m.is_owner)
+                .sort((a, b) => (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3));
+            const sorted = owner ? [owner, ...others] : others;
+            list.innerHTML = sorted.map(m => `
+                <div class="member-item">
+                    <span class="member-dot ${statusClass[m.status] || 'offline'}"></span>
+                    <span>${escapeHtml(m.username)}${m.is_owner ? ' <span class="member-owner-tag">创建者</span>' : ''}</span>
+                    <span class="member-status-label">${statusLabel[m.status] || '离线'}</span>
+                </div>`).join('');
+        }
+    }
+    else if (data.type === "init") {
+        mySiteId = data.site_id;
+        localStorage.setItem('mySiteId', mySiteId);
+        if (data.room_name && currentRoom) {
+            currentRoom.room_name = data.room_name;
+            localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
+        }
+        statusSpan.innerText = "已进入房间 🟢";
+        statusSpan.classList.remove('waiting');
+        statusSpan.classList.add('online');
+        if (currentRoom) docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
+        siteDisplay.innerText = `👤 ${myUsername} (Site: ${mySiteId})`;
+        btnGenInvite.style.display = 'inline-flex';
+        btnRenameRoom.style.display = 'inline-flex';
+        document.getElementById('btn-leave-room').style.display = 'inline-flex';
+        document.getElementById('btn-members').style.display = 'inline-flex';
+        resizeCanvas();
+    }
+    else if (data.type === "presence") {
+        addLog(`⚡️ [房间广播] ${data.username || data.site_id} 进入了文档`);
+    }
+    else if (data.type === "cursor") {
+        if (data.site_id === mySiteId) return;
+        let relativeIndex = 0;
+        if (data.anchorId !== "start") {
+            const foundIndex = docState.findIndex(item => item.id === data.anchorId);
+            if (foundIndex !== -1) relativeIndex = foundIndex + 1;
+        }
+        const remoteName = data.username ? data.username : `神秘人 ${data.site_id}`;
+        cursorsModule.createCursor(data.site_id.toString(), remoteName, getUserColor(data.site_id));
+        cursorsModule.moveCursor(data.site_id.toString(), { index: relativeIndex, length: data.length });
+    }
+    else if (data.type === "insert") {
+        isApplyingRemoteChange = true;
+        docState.push({ id: data.id, char: data.char, attributes: data.attributes || {} });
+        docState.sort((a, b) => a.id.localeCompare(b.id));
+        const relativeIndex = docState.findIndex(item => item.id === data.id);
+        if (typeof data.char === 'string') {
+            if (data.char.length > 0) quill.insertText(relativeIndex, data.char, data.attributes || {}, 'silent');
+        } else {
+            const embedType = Object.keys(data.char)[0];
+            const embedValue = data.char[embedType];
+            quill.insertEmbed(relativeIndex, embedType, embedValue, 'silent');
+        }
+        isApplyingRemoteChange = false;
+    }
+    else if (data.type === "delete") {
+        isApplyingRemoteChange = true;
+        const targetIndex = docState.findIndex(item => item.id === data.id);
+        if (targetIndex !== -1) {
+            const deletedItem = docState.splice(targetIndex, 1)[0];
+            const delLen = typeof deletedItem.char === 'string' ? deletedItem.char.length : 1;
+            if (delLen > 0) quill.deleteText(targetIndex, delLen, 'silent');
+        }
+        isApplyingRemoteChange = false;
+    }
+    else if (data.type === "format") {
+        isApplyingRemoteChange = true;
+        const targetIndex = docState.findIndex(item => item.id === data.id);
+        if (targetIndex !== -1) {
+            const formatItem = docState[targetIndex];
+            if (data.value === null || data.value === false) delete formatItem.attributes[data.key];
+            else formatItem.attributes[data.key] = data.value;
+            const formatLen = typeof formatItem.char === 'string' ? formatItem.char.length : 1;
+            if (formatLen > 0) quill.formatText(targetIndex, formatLen, data.key, data.value, 'silent');
+        }
+        isApplyingRemoteChange = false;
+    }
+};
+
+const btnMembers = document.getElementById('btn-members');
+const membersPanel = document.getElementById('members-panel');
+const membersList = document.getElementById('members-list');
+
+btnMembers.onclick = (e) => {
+    e.stopPropagation();
+    const isOpen = membersPanel.classList.contains('open');
+    if (isOpen) {
+        membersPanel.classList.remove('open');
+    } else {
+        const rect = btnMembers.getBoundingClientRect();
+        membersPanel.style.top = (rect.bottom + 6) + 'px';
+        membersPanel.style.left = rect.left + 'px';
+        membersList.innerHTML = '<div class="member-item" style="color:#8a8a9a;">加载中...</div>';
+        membersPanel.classList.add('open');
+        ws.send(JSON.stringify({ type: "get_room_members" }));
+    }
+};
+
+document.addEventListener('click', (e) => {
+    if (!membersPanel.contains(e.target) && e.target !== btnMembers) {
+        membersPanel.classList.remove('open');
+    }
+});
+
+quill.on('selection-change', (range, oldRange, source) => {
+    if (range && mySiteId) {
+        let anchorId = "start";
+        if (range.index > 0 && range.index <= docState.length) anchorId = docState[range.index - 1].id;
+        ws.send(JSON.stringify({ type: "cursor", site_id: mySiteId, username: myUsername, anchorId: anchorId, length: range.length }));
+    }
+});
+
+quill.on('text-change', (delta, oldDelta, source) => {
+    if (source === 'silent' || !mySiteId || isApplyingRemoteChange) return;
+    let currentIndex = 0;
+    delta.ops.forEach(op => {
+        if (op.retain) {
+            if (op.attributes) {
+                const attrKeys = Object.keys(op.attributes);
+                for (let i = 0; i < op.retain; i++) {
+                    const targetRelIndex = currentIndex + i; if (targetRelIndex >= docState.length) break;
+                    const charItem = docState[targetRelIndex];
+                    attrKeys.forEach(key => {
+                        const val = op.attributes[key];
+                        if (val === null || val === false) delete charItem.attributes[key]; else charItem.attributes[key] = val;
+                        ws.send(JSON.stringify({ type: "format", id: charItem.id, key: key, value: val }));
+                    });
+                }
+            }
+            currentIndex += op.retain;
+        } else if (op.insert) {
+            let itemsToInsert = [];
+            if (typeof op.insert === 'string') {
+                const segmenter = new Intl.Segmenter('zh-CN', { granularity: 'grapheme' });
+                const chars = Array.from(segmenter.segment(op.insert)).map(s => s.segment);
+                chars.forEach(c => { itemsToInsert.push(c); for(let i = 1; i < c.length; i++) itemsToInsert.push(""); });
+            } else { itemsToInsert = [op.insert]; }
+
+            for (let i = 0; i < itemsToInsert.length; i++) {
+                const item = itemsToInsert[i];
+                const leftId = currentIndex > 0 ? docState[currentIndex - 1].id.split('@')[0] : "";
+                const rightId = currentIndex < docState.length ? docState[currentIndex].id.split('@')[0] : "";
+                const absoluteId = `${generatePosBetween(leftId, rightId)}@${mySiteId}`;
+                const attrs = op.attributes || {};
+                docState.splice(currentIndex, 0, { id: absoluteId, char: item, attributes: attrs });
+                ws.send(JSON.stringify({ type: "insert", id: absoluteId, char: item, attributes: attrs }));
+                currentIndex++;
+            }
+        } else if (op.delete) {
+            for (let i = 0; i < op.delete; i++) {
+                if (currentIndex < docState.length) {
+                    const delId = docState[currentIndex].id; docState.splice(currentIndex, 1);
+                    ws.send(JSON.stringify({ type: "delete", id: delId }));
+                }
+            }
+        }
+    });
+});
 </script>
 </body>
 </html>
