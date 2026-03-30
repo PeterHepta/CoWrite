@@ -99,6 +99,7 @@ public:
     sqlite3_stmt* stmt_get_members_         = nullptr;
     sqlite3_stmt* stmt_get_my_rooms_        = nullptr;
     sqlite3_stmt* stmt_get_history_         = nullptr;
+    sqlite3_stmt* stmt_clear_events_        = nullptr;
     sqlite3_stmt* stmt_insert_save_         = nullptr;
     sqlite3_stmt* stmt_delete_quick_save_   = nullptr;
     sqlite3_stmt* stmt_get_saves_           = nullptr;
@@ -207,6 +208,9 @@ public:
         sqlite3_prepare_v2(db_,
             "SELECT payload FROM events WHERE doc_id = ? ORDER BY id ASC;",
             -1, &stmt_get_history_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "DELETE FROM events WHERE doc_id=?;",
+            -1, &stmt_clear_events_, nullptr);
 
         // saves 表
         sqlite3_exec(db_,
@@ -268,7 +272,7 @@ public:
         sqlite3_finalize(stmt_get_members_);
         sqlite3_finalize(stmt_get_my_rooms_);
         sqlite3_finalize(stmt_get_history_);
-        sqlite3_finalize(stmt_insert_save_);
+        sqlite3_finalize(stmt_clear_events_);
         sqlite3_finalize(stmt_delete_quick_save_);
         sqlite3_finalize(stmt_get_saves_);
         sqlite3_finalize(stmt_delete_save_);
@@ -855,14 +859,53 @@ public:
                         std::string save_name = col_text(0);
                         std::string doc_state_str = col_text(1);
                         std::string shapes_str = col_text(2);
-                        // 解析 doc_state 和 shapes 为 JSON 对象再放进广播消息
+
+                        // 解析存档内容
+                        json doc_state_json = json::array();
+                        json shapes_json = json::array();
+                        try { doc_state_json = json::parse(doc_state_str); } catch(...) {}
+                        try { shapes_json = json::parse(shapes_str); } catch(...) {}
+
+                        // 1. 清空旧 events
+                        sqlite3_reset(server_.stmt_clear_events_);
+                        sqlite3_bind_text(server_.stmt_clear_events_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_step(server_.stmt_clear_events_);
+
+                        // 2. 将 doc_state 每个元素写为 insert 事件
+                        for (const auto& item : doc_state_json) {
+                            try {
+                                json ev = {{"type","insert"},
+                                           {"id", item.at("id")},
+                                           {"char", item.at("char")},
+                                           {"attributes", item.value("attributes", json::object())}};
+                                std::string payload = ev.dump();
+                                sqlite3_reset(server_.stmt_insert_event_);
+                                sqlite3_bind_text(server_.stmt_insert_event_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                                sqlite3_bind_text(server_.stmt_insert_event_, 2, payload.c_str(), -1, SQLITE_TRANSIENT);
+                                sqlite3_step(server_.stmt_insert_event_);
+                            } catch(...) {}
+                        }
+
+                        // 3. 将 shapes 每个元素写为 shape_add 事件
+                        for (const auto& s : shapes_json) {
+                            try {
+                                json ev = {{"type","shape_add"}, {"shape", s}};
+                                std::string payload = ev.dump();
+                                sqlite3_reset(server_.stmt_insert_event_);
+                                sqlite3_bind_text(server_.stmt_insert_event_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                                sqlite3_bind_text(server_.stmt_insert_event_, 2, payload.c_str(), -1, SQLITE_TRANSIENT);
+                                sqlite3_step(server_.stmt_insert_event_);
+                            } catch(...) {}
+                        }
+
+                        // 4. 广播 load_save_applied 给所有在线用户
                         json broadcast_msg;
                         broadcast_msg["type"] = "load_save_applied";
                         broadcast_msg["save_id"] = save_id;
                         broadcast_msg["name"] = save_name;
                         broadcast_msg["applied_by"] = uname;
-                        try { broadcast_msg["doc_state"] = json::parse(doc_state_str); } catch(...) { broadcast_msg["doc_state"] = json::array(); }
-                        try { broadcast_msg["shapes"] = json::parse(shapes_str); } catch(...) { broadcast_msg["shapes"] = json::array(); }
+                        broadcast_msg["doc_state"] = doc_state_json;
+                        broadcast_msg["shapes"] = shapes_json;
                         std::string resp = broadcast_msg.dump();
                         net::post(ws_.get_executor(), [room_ref, resp]() {
                             room_ref->broadcast_all(resp);

@@ -1925,7 +1925,7 @@ function openLoadModal(saves) {
 
         card.addEventListener('click', (e) => {
             if (e.target.classList.contains('save-slot-del')) return;
-            showConfirm(`确认读取存档「${save.name}」？房间内所有人的内容都将被覆盖。`, () => {
+            showConfirm(`确认读取存档「${save.name}」？\n当前未保存的进度将永久丢失，且房间内所有人的内容都将被覆盖。`, () => {
                 ws.send(JSON.stringify({ type: "load_save", save_id: save.id }));
             }, null, true);
         });
@@ -1964,7 +1964,6 @@ function showSaveBtn() {
     document.getElementById('save-dropdown-wrap').classList.add('visible');
 }
 
-// ── 自定义通知/弹窗工具函数 ──
 function showToast(msg, type = 'info', duration = 3500) {
     const icons = { info: 'ℹ️', success: '✅', warn: '⚠️', error: '❌' };
     const container = document.getElementById('toast-container');
