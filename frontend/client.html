@@ -464,11 +464,147 @@
         .modal-btn-cancel:hover { opacity:1; background: var(--matcha-accent-light); }
         .modal-btn-ok { background: var(--matcha-accent); color: white; }
         .modal-btn-ok.danger { background: #c0483a; }
+
+        #ai-panel {
+            position: fixed; top: 0; right: -420px; width: 400px; height: 100vh;
+            background: var(--matcha-card); border-left: 1px solid var(--matcha-border);
+            box-shadow: -4px 0 24px rgba(44,58,40,0.12);
+            display: flex; flex-direction: column; z-index: 9500;
+            transition: right .3s cubic-bezier(.4,0,.2,1);
+        }
+        #ai-panel.open { right: 0; }
+        #ai-panel-header {
+            display: flex; align-items: center; gap: 10px;
+            padding: 14px 16px; border-bottom: 1px solid var(--matcha-border-light);
+            background: var(--matcha-surface); flex-shrink: 0;
+        }
+        #ai-panel-header h3 {
+            margin: 0; flex: 1; font-size: 14px; font-weight: 700; color: var(--matcha-text);
+        }
+        #btn-close-ai {
+            background: none; border: none; font-size: 18px; cursor: pointer;
+            color: var(--matcha-text-muted); line-height: 1; padding: 2px 5px;
+        }
+        #btn-close-ai:hover { color: var(--matcha-text); }
+        #ai-backend-badge {
+            font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 10px;
+            white-space: nowrap; letter-spacing: .3px;
+        }
+        #ai-backend-badge.webgpu { background: #e8f0ff; color: #3a5abf; border: 1px solid #b0c4f8; }
+        #ai-backend-badge.wasm   { background: var(--matcha-accent-light); color: var(--matcha-accent); border: 1px solid var(--matcha-border); }
+        #ai-panel-body {
+            flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px;
+        }
+        #ai-model-bar {
+            display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+        }
+        #ai-model-select {
+            flex: 1; padding: 7px 10px; border: 1.5px solid var(--matcha-border); border-radius: 8px;
+            font-size: 12px; background: var(--matcha-surface); color: var(--matcha-text);
+            outline: none; font-family: inherit; cursor: pointer;
+        }
+        #ai-model-select:focus { border-color: var(--matcha-accent); }
+        #ai-progress-wrap {
+            display: none; flex-direction: column; gap: 6px;
+        }
+        #ai-progress-wrap.visible { display: flex; }
+        #ai-progress-bar-track {
+            height: 6px; background: var(--matcha-border-light); border-radius: 3px; overflow: hidden;
+        }
+        #ai-progress-bar-fill {
+            height: 100%; width: 0%; background: var(--matcha-accent); border-radius: 3px;
+            transition: width .3s ease;
+        }
+        #ai-progress-label {
+            font-size: 11px; color: var(--matcha-text-muted);
+        }
+        #ai-prompt-area {
+            display: flex; flex-direction: column; gap: 8px;
+        }
+        #ai-prompt-input {
+            width: 100%; box-sizing: border-box;
+            padding: 10px 12px; border: 1.5px solid var(--matcha-border); border-radius: 8px;
+            font-size: 13px; font-family: inherit; background: var(--matcha-surface);
+            color: var(--matcha-text); resize: vertical; min-height: 70px; outline: none;
+            transition: border-color .18s;
+        }
+        #ai-prompt-input:focus { border-color: var(--matcha-accent); background: #fff; }
+        #btn-ai-summarize {
+            padding: 9px 14px; border: none; border-radius: 8px; font-size: 13px;
+            font-weight: 600; cursor: pointer; background: var(--matcha-accent); color: white;
+            font-family: inherit; transition: opacity .18s; display: flex; align-items: center;
+            justify-content: center; gap: 6px;
+        }
+        #btn-ai-summarize:hover { opacity: .88; }
+        #btn-ai-summarize:disabled { opacity: .5; cursor: not-allowed; }
+        #ai-result-wrap {
+            display: none; flex-direction: column; gap: 8px;
+        }
+        #ai-result-wrap.visible { display: flex; }
+        #ai-result-label {
+            font-size: 11px; font-weight: 600; color: var(--matcha-text-muted); letter-spacing: .5px; text-transform: uppercase;
+        }
+        #ai-result-box {
+            background: var(--matcha-surface); border: 1px solid var(--matcha-border-light);
+            border-radius: 8px; padding: 12px 14px;
+            font-size: 13px; line-height: 1.75; color: var(--matcha-text);
+            white-space: pre-wrap; word-break: break-word;
+            max-height: 55vh; overflow-y: auto;
+        }
+        #ai-status-line {
+            font-size: 11px; color: var(--matcha-text-muted); min-height: 16px;
+        }
+        #btn-ai-stop {
+            display: none; padding: 7px 12px; border: 1px solid #c0483a; border-radius: 8px;
+            font-size: 12px; font-weight: 600; cursor: pointer; color: #c0483a;
+            background: none; font-family: inherit; transition: background .15s, color .15s;
+        }
+        #btn-ai-stop.visible { display: inline-flex; }
+        #btn-ai-stop:hover { background: #c0483a; color: white; }
     </style>
 </head>
 <body>
 
 <div id="toast-container"></div>
+
+<!-- AI 总结侧边面板 -->
+<div id="ai-panel">
+    <div id="ai-panel-header">
+        <h3>🤖 AI 总结</h3>
+        <span id="ai-backend-badge"></span>
+        <button id="btn-close-ai" title="关闭">✕</button>
+    </div>
+    <div id="ai-panel-body">
+        <div id="ai-model-bar">
+            <select id="ai-model-select">
+                <optgroup id="ai-optgroup-webgpu" label="⚡ WebGPU 模式（更快）">
+                    <option value="webgpu:Qwen2.5-3B-Instruct-q4f16_1-MLC">Qwen2.5-3B（约2GB）</option>
+                    <option value="webgpu:Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen2.5-1.5B（约1GB）</option>
+                    <option value="webgpu:SmolLM2-1.7B-Instruct-q4f16_1-MLC">SmolLM2-1.7B（英文）</option>
+                </optgroup>
+                <optgroup label="🧩 WASM 模式（全浏览器兼容）">
+                    <option value="wasm:onnx-community/Qwen2.5-0.5B-Instruct">Qwen2.5-0.5B（约270MB）</option>
+                    <option value="wasm:onnx-community/Qwen2.5-1.5B-Instruct">Qwen2.5-1.5B（约800MB）</option>
+                    <option value="wasm:onnx-community/Qwen3-0.6B-ONNX">Qwen3-0.6B（约330MB）</option>
+                </optgroup>
+            </select>
+        </div>
+        <div id="ai-progress-wrap">
+            <div id="ai-progress-bar-track"><div id="ai-progress-bar-fill"></div></div>
+            <div id="ai-progress-label">准备中...</div>
+        </div>
+        <div id="ai-prompt-area">
+            <textarea id="ai-prompt-input" placeholder="自定义提示词（可选，留空使用默认总结指令）"></textarea>
+            <button id="btn-ai-summarize">读取文档并生成总结</button>
+            <button id="btn-ai-stop">⏹ 停止生成</button>
+        </div>
+        <div id="ai-status-line"></div>
+        <div id="ai-result-wrap">
+            <div id="ai-result-label">总结结果</div>
+            <div id="ai-result-box"></div>
+        </div>
+    </div>
+</div>
 
 <div id="auth-overlay">
     <div class="auth-page">
@@ -634,6 +770,7 @@
             <button id="btn-rename-room" title="修改房间名" class="action-btn blue" style="display:none;">✏️ 重命名</button>
             <button id="btn-gen-invite" class="action-btn orange" style="display:none;">🔑 邀请</button>
             <button id="btn-members" class="action-btn blue" style="display:none;">👥 成员</button>
+            <button id="btn-ai-panel" class="action-btn blue" style="display:none;">🤖 AI 总结</button>
             <button id="btn-leave-room" class="action-btn orange" style="display:none;">退出房间</button>
             <!-- 存档下拉 -->
             <div class="save-dropdown-wrap" id="save-dropdown-wrap">
@@ -1582,6 +1719,7 @@ function handleMessage(data) {
         btnRenameRoom.style.display = 'inline-flex';
         document.getElementById('btn-leave-room').style.display = 'inline-flex';
         document.getElementById('btn-members').style.display = 'inline-flex';
+        document.getElementById('btn-ai-panel').style.display = 'inline-flex';
         resizeCanvas();
         showSaveBtn();
     }
@@ -2024,7 +2162,267 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
     setTimeout(() => { input.focus(); input.select(); }, 50);
 }
 
+(function() {
+    const panel        = document.getElementById('ai-panel');
+    const btnOpen      = document.getElementById('btn-ai-panel');
+    const btnClose     = document.getElementById('btn-close-ai');
+    const btnSummarize = document.getElementById('btn-ai-summarize');
+    const btnStop      = document.getElementById('btn-ai-stop');
+    const modelSel     = document.getElementById('ai-model-select');
+    const progressWrap = document.getElementById('ai-progress-wrap');
+    const progressFill = document.getElementById('ai-progress-bar-fill');
+    const progressLabel= document.getElementById('ai-progress-label');
+    const resultWrap   = document.getElementById('ai-result-wrap');
+    const resultBox    = document.getElementById('ai-result-box');
+    const statusLine   = document.getElementById('ai-status-line');
+    const promptInput  = document.getElementById('ai-prompt-input');
+    const badge        = document.getElementById('ai-backend-badge');
+    const webgpuOptgroup = document.getElementById('ai-optgroup-webgpu');
 
+    let webgpuAvailable = false;
+    let activeEngine = null;   // WebLLM engine 实例
+    let aiWorker = null;       // WASM Web Worker
+    let loadedModelKey = null; // "webgpu:xxx" 或 "wasm:xxx"
+    let generating = false;
+    let stopRequested = false;
+
+    btnOpen.onclick  = () => panel.classList.add('open');
+    btnClose.onclick = () => panel.classList.remove('open');
+
+    function setStatus(msg) { statusLine.textContent = msg; }
+
+    async function detectWebGPU() {
+        try {
+            if (!navigator.gpu) return false;
+            const adapter = await navigator.gpu.requestAdapter();
+            return !!adapter;
+        } catch { return false; }
+    }
+
+    function waitFor(getter, timeout = 15000) {
+        return new Promise((resolve, reject) => {
+            if (getter()) { resolve(getter()); return; }
+            const start = Date.now();
+            const t = setInterval(() => {
+                const v = getter();
+                if (v) { clearInterval(t); resolve(v); }
+                else if (Date.now() - start > timeout) { clearInterval(t); reject(new Error('库加载超时')); }
+            }, 100);
+        });
+    }
+
+    async function init() {
+        webgpuAvailable = await detectWebGPU();
+        if (webgpuAvailable) {
+            badge.textContent = '⚡ WebGPU 可用';
+            badge.className = 'webgpu';
+            modelSel.value = 'webgpu:Qwen2.5-3B-Instruct-q4f16_1-MLC';
+        } else {
+            badge.textContent = '🧩 WASM 模式';
+            badge.className = 'wasm';
+            webgpuOptgroup.label = '⚡ WebGPU（当前设备不支持）';
+            modelSel.value = 'wasm:onnx-community/Qwen2.5-0.5B-Instruct';
+        }
+    }
+    init();
+
+    function parseModel(val) {
+        const idx = val.indexOf(':');
+        return { backend: val.slice(0, idx), modelId: val.slice(idx + 1) };
+    }
+
+    async function loadModel() {
+        const val = modelSel.value;
+        if (loadedModelKey === val && (activeEngine || aiWorker)) return true;
+
+        activeEngine = null;
+        if (aiWorker) { aiWorker.terminate(); aiWorker = null; }
+        loadedModelKey = null;
+        progressWrap.classList.add('visible');
+        progressFill.style.width = '0%';
+        progressLabel.textContent = '正在初始化...';
+        btnSummarize.disabled = true;
+        setStatus('');
+
+        const { backend, modelId } = parseModel(val);
+
+        try {
+            if (backend === 'webgpu') {
+                setStatus('正在加载 WebLLM...');
+                const webllm = await window._loadWebLLM();
+                activeEngine = await webllm.CreateMLCEngine(modelId, {
+                    initProgressCallback: (p) => {
+                        const pct = Math.round((p.progress || 0) * 100);
+                        progressFill.style.width = pct + '%';
+                        progressLabel.textContent = p.text || `加载中 ${pct}%`;
+                    }
+                });
+                badge.textContent = '⚡ WebGPU';
+                badge.className = 'webgpu';
+                loadedModelKey = val;
+                progressFill.style.width = '100%';
+                progressLabel.textContent = '模型已就绪';
+                setTimeout(() => progressWrap.classList.remove('visible'), 1500);
+                btnSummarize.disabled = false;
+                setStatus('模型加载完成');
+                return true;
+            } else {
+                // WASM 模式：在 Web Worker 里加载，主线程不卡
+                badge.textContent = '🧩 WASM';
+                badge.className = 'wasm';
+                setStatus('正在后台加载模型...');
+
+                return await new Promise((resolve) => {
+                    aiWorker = new Worker('/ai-worker.js', { type: 'module' });
+                    aiWorker.postMessage({ type: 'load', payload: { modelId } });
+                    aiWorker.onmessage = (e) => {
+                        const { type, payload } = e.data;
+                        if (type === 'progress') {
+                            if (payload.status === 'progress') {
+                                const pct = Math.round(payload.progress || 0);
+                                progressFill.style.width = pct + '%';
+                                progressLabel.textContent = `下载 ${payload.file || ''} ${pct}%`;
+                            } else if (payload.status === 'done') {
+                                progressLabel.textContent = `已加载 ${payload.file || ''}`;
+                            } else if (payload.status === 'initiate') {
+                                progressLabel.textContent = `准备 ${payload.file || ''}...`;
+                            }
+                        } else if (type === 'load_done') {
+                            loadedModelKey = val;
+                            progressFill.style.width = '100%';
+                            progressLabel.textContent = '模型已就绪';
+                            setTimeout(() => progressWrap.classList.remove('visible'), 1500);
+                            btnSummarize.disabled = false;
+                            setStatus('模型加载完成');
+                            resolve(true);
+                        } else if (type === 'load_error') {
+                            progressWrap.classList.remove('visible');
+                            btnSummarize.disabled = false;
+                            setStatus('加载失败：' + payload);
+                            showToast('AI 模型加载失败：' + payload, 'error');
+                            aiWorker.terminate(); aiWorker = null;
+                            resolve(false);
+                        }
+                    };
+                    aiWorker.onerror = (err) => {
+                        progressWrap.classList.remove('visible');
+                        btnSummarize.disabled = false;
+                        setStatus('加载失败：' + err.message);
+                        showToast('AI Worker 错误：' + err.message, 'error');
+                        aiWorker = null;
+                        resolve(false);
+                    };
+                });
+            }
+        } catch (e) {
+            progressWrap.classList.remove('visible');
+            btnSummarize.disabled = false;
+            setStatus('加载失败：' + e.message);
+            showToast('AI 模型加载失败：' + e.message, 'error');
+            activeEngine = null;
+            aiWorker = null;
+            return false;
+        }
+    }
+
+    function getDocText() {
+        if (typeof docState === 'undefined' || !docState.length) return '';
+        return docState.filter(c => c.char && c.char !== '\x00').map(c => c.char).join('');
+    }
+
+    btnSummarize.onclick = async () => {
+        if (generating) return;
+        const ok = await loadModel();
+        if (!ok) return;
+
+        const text = getDocText().trim();
+        if (!text) { setStatus('文档内容为空，无法总结'); return; }
+
+        const userPrompt = promptInput.value.trim() ||
+            '请用中文对以下文档内容进行简洁的结构化总结，包括主要主题、关键要点和结论（如有）。';
+        const maxChars = 4000;
+        const docSnippet = text.length > maxChars
+            ? text.slice(0, maxChars) + '\n\n[…内容过长，已截断]' : text;
+        const messages = [
+            { role: 'system', content: '你是一个专业的文档助手，擅长提炼要点并给出清晰的总结。' },
+            { role: 'user',   content: userPrompt + '\n\n---\n' + docSnippet }
+        ];
+
+        generating = true;
+        stopRequested = false;
+        btnSummarize.disabled = true;
+        btnStop.classList.add('visible');
+        resultBox.textContent = '';
+        resultWrap.classList.add('visible');
+        setStatus('生成中…');
+
+        try {
+            if (activeEngine) {
+                // WebLLM 流式
+                const stream = await activeEngine.chat.completions.create({
+                    messages, stream: true, temperature: 0.6, max_tokens: 800,
+                });
+                for await (const chunk of stream) {
+                    if (stopRequested) { await activeEngine.interruptGenerate(); break; }
+                    const delta = chunk.choices[0]?.delta?.content || '';
+                    resultBox.textContent += delta;
+                    resultBox.scrollTop = resultBox.scrollHeight;
+                }
+            } else {
+                // WASM Worker 流式生成
+                await new Promise((resolve, reject) => {
+                    stopRequested = false;
+                    aiWorker.onmessage = (e) => {
+                        const { type, payload } = e.data;
+                        if (type === 'token') {
+                            if (stopRequested) return;
+                            resultBox.textContent += payload;
+                            resultBox.scrollTop = resultBox.scrollHeight;
+                        } else if (type === 'generate_done' || type === 'stopped') {
+                            resolve();
+                        } else if (type === 'generate_error') {
+                            reject(new Error(payload));
+                        }
+                    };
+                    aiWorker.postMessage({ type: 'generate', payload: { messages, max_new_tokens: 600 } });
+                });
+            }
+            setStatus(stopRequested ? '已停止' : '生成完成');
+        } catch (e) {
+            setStatus('生成出错：' + e.message);
+            showToast('AI 生成出错：' + e.message, 'error');
+        } finally {
+            generating = false;
+            btnSummarize.disabled = false;
+            btnStop.classList.remove('visible');
+        }
+    };
+
+    btnStop.onclick = () => {
+        stopRequested = true;
+        if (aiWorker) aiWorker.postMessage({ type: 'stop' });
+    };
+
+    modelSel.onchange = () => {
+        activeEngine = null;
+        if (aiWorker) { aiWorker.terminate(); aiWorker = null; }
+        loadedModelKey = null;
+        const { backend } = parseModel(modelSel.value);
+        setStatus('已选择新模型，点击按钮时将重新加载');
+        badge.textContent = backend === 'webgpu' ? '⚡ WebGPU' : '🧩 WASM';
+        badge.className   = backend;
+    };
+})();
+
+</script>
+<script type="module">
+    // WebLLM 懒加载：只有用户点击生成且选了 WebGPU 模型时才执行
+    window._loadWebLLM = async () => {
+        if (window._webllm) return window._webllm;
+        const webllm = await import("https://esm.run/@mlc-ai/web-llm");
+        window._webllm = webllm;
+        return webllm;
+    };
 </script>
 </body>
 </html>

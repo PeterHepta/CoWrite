@@ -33,4 +33,4 @@ Icon
 *.swp
 *.bak
 *~
-.stackdump
+.stackdumpfrontend/ai_bundle/node_modules/

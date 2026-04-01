@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"></head>
+<body>
+<pre id="log" style="font-family:monospace;padding:20px;font-size:13px;"></pre>
+<script>
+const L = s => { document.getElementById('log').textContent += s + '\n'; console.log(s); };
+</script>
+<script type="module">
+L('[1] module script 开始执行');
+try {
+    L('[2] 开始 import transformers.js ...');
+    const mod = await import("https://esm.sh/@huggingface/transformers@3.3.3");
+    L('[3] import 成功, pipeline=' + typeof mod.pipeline);
+    mod.env.allowRemoteModels = true;
+    mod.env.remoteHost = 'https://hf-mirror.com/';
+    L('[4] env 设置完成, remoteHost=' + mod.env.remoteHost);
+    L('[5] 开始 pipeline() ...');
+    const pipe = await mod.pipeline('text-generation', 'onnx-community/Qwen2.5-0.5B-Instruct', {
+        dtype: 'q4',
+        progress_callback: p => L('  [progress] status=' + p.status + ' file=' + (p.file||'') + ' pct=' + Math.round(p.progress||0) + '%')
+    });
+    L('[6] 模型加载完成!');
+} catch(e) {
+    L('[ERR] ' + e.name + ': ' + e.message);
+    if (e.cause) L('[CAUSE] ' + e.cause);
+}
+</script>
+</body></html>
