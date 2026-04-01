@@ -34,3 +34,4 @@ Icon
 *.bak
 *~
 .stackdumpfrontend/ai_bundle/node_modules/
+frontend/ai_bundle/node_modules/
