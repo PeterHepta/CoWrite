@@ -20,6 +20,12 @@
 #include <chrono>
 #include <functional>
 
+/**
+ * @brief 计算字符串的 SHA-256 哈希值
+ *
+ * @param input 待哈希的原始字符串
+ * @return 十六进制编码的哈希字符串（64字符）
+ */
 static std::string sha256(const std::string& input) {
     unsigned char hash[SHA256_DIGEST_LENGTH];
     SHA256(reinterpret_cast<const unsigned char*>(input.c_str()), input.size(), hash);
@@ -39,6 +45,12 @@ using json = nlohmann::json;
 class Session;
 class Server;
 
+/**
+ * @brief 代表一个协作文档房间
+ *
+ * 管理加入该房间的所有 Session，负责消息广播、
+ * 历史事件回放以及将事件持久化到数据库。
+ */
 class Room {
     std::string doc_id_;
     Server& server_;
@@ -48,25 +60,83 @@ class Room {
     uint32_t next_site_id_ = 1;
 
 public:
+    /**
+     * @brief 构造 Room 对象
+     * @param doc_id 文档唯一标识
+     * @param server 所属 Server 引用
+     * @param db     SQLite 数据库句柄
+     */
     Room(std::string doc_id, Server& server, sqlite3* db)
         : doc_id_(std::move(doc_id)), server_(server), db_(db) {
-        std::cout << "🏠 [Room] Document " << doc_id_ << " activated in memory." << std::endl;
+        std::cout << "[Room] Document " << doc_id_ << " activated in memory." << std::endl;
     }
 
+    /**
+     * @brief 将 Session 加入房间
+     * @param session 待加入的会话指针
+     */
     void join(Session* session);
+
+    /**
+     * @brief 将 Session 从房间移除
+     * @param session 待移除的会话指针
+     */
     void leave(Session* session);
+
+    /**
+     * @brief 向除 sender 外的所有成员广播消息
+     * @param sender  发送方 Session，不会收到自己的消息
+     * @param message 待广播的 JSON 字符串
+     */
     void broadcast_except(Session* sender, const std::string& message);
+
+    /**
+     * @brief 向房间内所有成员广播消息
+     * @param message 待广播的 JSON 字符串
+     */
     void broadcast_all(const std::string& message);
+
+    /**
+     * @brief 将数据库中的历史事件批量发送给指定 Session
+     * @param session 目标会话指针
+     */
     void send_history(Session* session);
+
+    /**
+     * @brief 将事件异步写入数据库
+     * @param payload 事件的 JSON 字符串
+     */
     void save_event(const std::string& payload);
+
+    /**
+     * @brief 生成并返回下一个唯一的 site_id
+     * @return 单调递增的站点 ID
+     */
     uint32_t generate_site_id() { return next_site_id_++; }
+
+    /**
+     * @brief 获取文档 ID
+     * @return doc_id 的常量引用
+     */
     const std::string& doc_id() const { return doc_id_; }
+
+    /**
+     * @brief 检查指定 Session 是否在本房间内
+     * @param session 待检查的会话指针
+     * @return true 表示在房间内，false 表示不在
+     */
     bool has_session(Session* session) {
         std::lock_guard<std::mutex> lock(mutex_);
         return sessions_.count(session) > 0;
     }
 };
 
+/**
+ * @brief 全局服务器，管理房间、用户会话及数据库操作
+ *
+ * 持有 SQLite 连接和所有预编译语句，通过独立的
+ * db_thread_ 串行执行数据库任务以避免并发冲突。
+ */
 class Server {
     std::unordered_map<std::string, std::shared_ptr<Room>> rooms_;
     std::mutex mutex_;
@@ -106,6 +176,9 @@ public:
     sqlite3_stmt* stmt_delete_save_         = nullptr;
     sqlite3_stmt* stmt_get_save_by_id_      = nullptr;
 
+    /**
+     * @brief 构造 Server，初始化数据库表结构并预编译 SQL 语句，启动 db_thread_
+     */
     Server() {
         if (sqlite3_open("collab_doc_v2.db", &db_)) {
             std::cerr << "Failed to open database!" << std::endl; exit(1);
@@ -129,7 +202,7 @@ public:
             std::cerr << "Failed to create users table" << std::endl;
             sqlite3_free(errMsgUser);
         } else {
-            std::cout << "✅ Account Database Ready!" << std::endl;
+            std::cout << "Account Database Ready!" << std::endl;
         }
 
         const char* create_invite_codes_sql =
@@ -248,6 +321,9 @@ public:
         db_thread_ = std::thread(&Server::db_worker_loop, this);
     }
 
+    /**
+     * @brief 析构 Server，停止 db_thread_，释放所有预编译语句并关闭数据库
+     */
     ~Server() {
         {
             std::lock_guard<std::mutex> lock(db_mutex_);
@@ -281,6 +357,11 @@ public:
         if (db_) sqlite3_close(db_);
     }
 
+    /**
+     * @brief 获取已有 Room，若不存在则创建并缓存
+     * @param doc_id 文档唯一标识
+     * @return 对应 Room 的 shared_ptr
+     */
     std::shared_ptr<Room> get_or_create_room(const std::string& doc_id) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (rooms_.find(doc_id) == rooms_.end()) {
@@ -289,12 +370,21 @@ public:
         return rooms_[doc_id];
     }
 
+    /**
+     * @brief 将任意可调用对象投递到数据库串行队列
+     * @param task 待执行的任务（在 db_thread_ 中运行）
+     */
     void post_db_task(std::function<void()> task) {
         std::lock_guard<std::mutex> lock(db_mutex_);
         db_queue_.push(std::move(task));
         db_cv_.notify_one();
     }
 
+    /**
+     * @brief 将文档事件异步持久化到数据库
+     * @param doc_id  文档唯一标识
+     * @param payload 事件的 JSON 字符串
+     */
     void push_db_task(const std::string& doc_id, const std::string& payload) {
         post_db_task([this, doc_id, payload]() {
             sqlite3_reset(stmt_insert_event_);
@@ -304,20 +394,45 @@ public:
         });
     }
 
+    /**
+     * @brief 注册登录用户与其 Session 的映射；若该用户已在线则踢掉旧连接
+     * @param username 登录的用户名
+     * @param session  对应的 Session 指针
+     */
     void register_user(const std::string& username, Session* session);
+
+    /**
+     * @brief 注销用户登录，从在线表中移除对应映射
+     * @param username 用户名
+     * @param session  对应的 Session 指针（仅当匹配时才移除）
+     */
     void unregister_user(const std::string& username, Session* session);
 
+    /**
+     * @brief 判断用户当前是否在线
+     * @param username 用户名
+     * @return true 表示在线
+     */
     bool is_user_online(const std::string& username) {
         std::lock_guard<std::mutex> lock(user_mutex_);
         return active_users_.count(username) > 0;
     }
 
+    /**
+     * @brief 根据用户名获取其当前 Session 指针
+     * @param username 用户名
+     * @return Session 指针，若不在线则返回 nullptr
+     */
     Session* get_user_session(const std::string& username) {
         std::lock_guard<std::mutex> lock(user_mutex_);
         auto it = active_users_.find(username);
         return it != active_users_.end() ? it->second : nullptr;
     }
 
+    /**
+     * @brief 生成一个 6 位随机邀请码（大写字母 + 数字）
+     * @return 唯一性需由调用方校验的邀请码字符串
+     */
     std::string generate_invite_code() {
         static const char chars[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         static std::mt19937 rng(std::random_device{}());
@@ -327,12 +442,20 @@ public:
         return code;
     }
 
+    /**
+     * @brief 根据用户名和当前时间戳生成唯一的文档 ID
+     * @param username 房间创建者的用户名
+     * @return 格式为 "username_timestamp" 的文档 ID
+     */
     std::string generate_doc_id(const std::string& username) {
         auto ts = std::chrono::steady_clock::now().time_since_epoch().count();
         return username + "_" + std::to_string(ts);
     }
 
 private:
+    /**
+     * @brief 数据库工作线程主循环，串行消费 db_queue_ 中的任务
+     */
     void db_worker_loop() {
         while (true) {
             std::function<void()> task;
@@ -350,6 +473,13 @@ private:
 
 void Room::save_event(const std::string& payload) { server_.push_db_task(doc_id_, payload); }
 
+/**
+ * @brief 代表一个 WebSocket 客户端连接
+ *
+ * 每个 Session 对应一条 TCP 连接，负责读取客户端消息、
+ * 路由到相应处理逻辑，并通过批量写入（batching）机制
+ * 将消息高效地发送回客户端。
+ */
 class Session : public std::enable_shared_from_this<Session> {
     websocket::stream<beast::tcp_stream> ws_;
     beast::flat_buffer buffer_;
@@ -368,20 +498,37 @@ class Session : public std::enable_shared_from_this<Session> {
     std::string username_;
 
 public:
+    /**
+     * @brief 构造 Session
+     * @param socket 已接受的 TCP socket
+     * @param server 全局 Server 引用
+     */
     Session(tcp::socket&& socket, Server& server)
         : ws_(std::move(socket)), server_(server),
           batch_timer_(ws_.get_executor()) {}
 
+    /**
+     * @brief 析构 Session，自动注销用户并离开房间
+     */
     ~Session() {
         if (!username_.empty()) server_.unregister_user(username_, this);
         if (room_) room_->leave(this);
     }
 
+    /** @brief 启动会话，将 on_run 派发到 executor */
     void run() { net::dispatch(ws_.get_executor(), beast::bind_front_handler(&Session::on_run, shared_from_this())); }
+    /** @brief 发起 WebSocket 握手 */
     void on_run() { ws_.async_accept(beast::bind_front_handler(&Session::on_accept, shared_from_this())); }
+    /** @brief 握手完成回调，成功后开始读取 */
     void on_accept(beast::error_code ec) { if (!ec) do_read(); }
+    /** @brief 异步读取下一条消息 */
     void do_read() { ws_.async_read(buffer_, beast::bind_front_handler(&Session::on_read, shared_from_this())); }
 
+    /**
+     * @brief 读取完成回调，解析 JSON 并路由到对应消息处理逻辑
+     * @param ec                错误码
+     * @param bytes_transferred 已读取的字节数
+     */
     void on_read(beast::error_code ec, std::size_t bytes_transferred) {
         if (ec) return;
         std::string payload = beast::buffers_to_string(buffer_.data());
@@ -454,7 +601,6 @@ public:
                         std::string uname = username_;
                         auto self = shared_from_this();
                         server_.post_db_task([this, self, doc_id, room_name, invite_type, max_uses, expires_at, uname]() {
-                            // 生成唯一邀请码
                             std::string code;
                             while (true) {
                                 code = server_.generate_invite_code();
@@ -478,7 +624,7 @@ public:
                                         {"room_name", room_name}, {"invite_type", invite_type}};
                             if (expires_at > 0) res["expires_at"] = expires_at;
                             std::string resp = res.dump();
-                            std::cout << "🎉 用户 " << uname << " 创建房间 [" << room_name << "] "
+                            std::cout << "用户 " << uname << " 创建房间 [" << room_name << "] "
                                       << doc_id << "，邀请码: " << code << " [" << invite_type << "]" << std::endl;
                             net::post(ws_.get_executor(), [self, resp]() { self->send(resp); });
                         });
@@ -704,7 +850,7 @@ public:
                                     {"code", code}, {"invite_type", invite_type}};
                         if (expires_at > 0) res["expires_at"] = expires_at;
                         std::string resp = res.dump();
-                        std::cout << "🔑 用户 " << uname << " 在房间 " << doc_id
+                        std::cout << "用户 " << uname << " 在房间 " << doc_id
                                   << " 生成新邀请码: " << code << " [" << invite_type << "]" << std::endl;
                         net::post(ws_.get_executor(), [self, resp]() { self->send(resp); });
                     });
@@ -738,7 +884,7 @@ public:
 
                             json res = {{"type", "rename_room_res"}, {"success", true}, {"room_name", new_name}};
                             std::string resp = res.dump();
-                            std::cout << "✏️ 用户 " << uname << " 将房间 " << doc_id
+                            std::cout << "用户 " << uname << " 将房间 " << doc_id
                                       << " 重命名为: " << new_name << std::endl;
                             net::post(ws_.get_executor(), [self, resp]() { self->send(resp); });
                         });
@@ -940,12 +1086,20 @@ public:
         do_read();
     }
 
+    /**
+     * @brief 线程安全地将消息投递到发送队列
+     * @param message 待发送的 JSON 字符串
+     */
     void send(const std::string& message) {
         net::post(ws_.get_executor(), [self = shared_from_this(), message]() {
             self->enqueue(message);
         });
     }
 
+    /**
+     * @brief 通过共享指针版本的消息投递，避免多路广播时的字符串拷贝
+     * @param message 共享的消息内容
+     */
     void send_shared(std::shared_ptr<const std::string> message) {
         net::post(ws_.get_executor(), [self = shared_from_this(), message]() {
             self->enqueue(*message);
@@ -953,12 +1107,19 @@ public:
     }
 
 private:
+    /**
+     * @brief 将消息加入 pending_ 队列，若写入空闲则启动批量定时器
+     * @param msg 待发送的消息字符串
+     */
     void enqueue(const std::string& msg) {
         pending_.push_back(msg);
         if (is_writing_) return;          // 正在发，等 on_write 结束后自动续上
         if (!timer_armed_) arm_timer();
     }
 
+    /**
+     * @brief 启动 2ms 批量聚合定时器，到期后触发 flush()
+     */
     void arm_timer() {
         timer_armed_ = true;
         batch_timer_.expires_after(std::chrono::milliseconds(2));
@@ -970,8 +1131,13 @@ private:
         });
     }
 
+    /**
+     * @brief 将 pending_ 中所有消息打包为单帧后异步发送
+     *
+     * 若只有一条消息直接发送；多条消息则封装为
+     * @c {"type":"batch","msgs":[...]} 格式。
+     */
     void flush() {
-        // 把 pending_ 里所有消息打包成一帧
         if (pending_.size() == 1) {
             write_buf_ = std::move(pending_[0]);
         } else {
@@ -993,6 +1159,10 @@ private:
             beast::bind_front_handler(&Session::on_write, shared_from_this()));
     }
 
+    /**
+     * @brief 异步写入完成回调，若队列非空则继续 flush()
+     * @param ec 错误码
+     */
     void on_write(beast::error_code ec, std::size_t) {
         if (ec) return;
         is_writing_ = false;
@@ -1007,7 +1177,7 @@ void Server::register_user(const std::string& username, Session* session) {
     auto it = active_users_.find(username);
     if (it != active_users_.end() && it->second != session) {
         it->second->send(R"({"type": "kicked", "msg": "您的账号已在其他设备登录，您被迫下线！"})");
-        std::cout << "⚠️ 用户 " << username << " 的旧设备被踢下线。" << std::endl;
+        std::cout << "用户 " << username << " 的旧设备被踢下线。" << std::endl;
     }
     active_users_[username] = session;
 }
@@ -1053,6 +1223,12 @@ void Room::send_history(Session* session) {
     });
 }
 
+/**
+ * @brief 递归投递异步 accept，每接受一个连接即创建新 Session
+ * @param ioc      io_context 引用
+ * @param acceptor TCP 接受器
+ * @param server   全局 Server 引用
+ */
 void do_accept(net::io_context& ioc, std::shared_ptr<tcp::acceptor> acceptor, Server& server) {
     acceptor->async_accept(net::make_strand(ioc),
         [&ioc, acceptor, &server](beast::error_code ec, tcp::socket socket) {
@@ -1061,6 +1237,12 @@ void do_accept(net::io_context& ioc, std::shared_ptr<tcp::acceptor> acceptor, Se
         });
 }
 
+/**
+ * @brief 程序入口，初始化 io_context、Server 及 TCP 监听器，启动多线程事件循环
+ *
+ * 监听地址为 0.0.0.0:9002，使用 2 个 I/O 线程处理并发连接。
+ * @return 正常退出返回 0
+ */
 int main() {
     try {
         const int num_threads = 2;
