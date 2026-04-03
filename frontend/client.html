@@ -45,8 +45,14 @@
         .status-section-brand .brand-name {
             font-size: 15px; font-weight: 700; color: var(--matcha-text); letter-spacing: -0.2px;
         }
-        .status-section-doc { flex: 1; }
-        .status-section-user { gap: 6px; }
+        .status-section-doc { flex: 1; min-width: 0; }
+        .status-section-doc #doc-display {
+            max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-block; vertical-align: middle;
+        }
+        .status-section-user { gap: 6px; flex-shrink: 0; }
+        .status-section-user #site-display {
+            max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
         .status-pill {
             display: inline-flex; align-items: center; gap: 4px;
             background: var(--matcha-surface); border-radius: 20px;
@@ -2416,7 +2422,6 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
 
 </script>
 <script type="module">
-    // WebLLM 懒加载：只有用户点击生成且选了 WebGPU 模型时才执行
     window._loadWebLLM = async () => {
         if (window._webllm) return window._webllm;
         const webllm = await import("https://esm.run/@mlc-ai/web-llm");
