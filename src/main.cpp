@@ -58,6 +58,10 @@ class Room {
     std::unordered_set<Session*> sessions_;
     std::mutex mutex_;
     uint32_t next_site_id_ = 1;
+    int event_count_ = 0;           // 自上次快照以来的 event 数量
+    bool snapshot_requested_ = false; // 防重入
+
+    static constexpr int AUTO_SNAPSHOT_THRESHOLD = 500; // 每 500 条 event 触发一次快照
 
 public:
     /**
@@ -107,6 +111,20 @@ public:
      * @param payload 事件的 JSON 字符串
      */
     void save_event(const std::string& payload);
+
+    /**
+     * @brief 检查是否需要触发自动快照，若达到阈值则向某个在线客户端发出请求
+     */
+    void maybe_request_auto_snapshot();
+
+    /**
+     * @brief 自动快照完成后由 db_thread_ 回调，重置计数器和锁
+     */
+    void reset_snapshot_state() {
+        event_count_ = 0;
+        snapshot_requested_ = false;
+        std::cout << "[AutoSnap] 房间 " << doc_id_ << " 快照状态已重置。" << std::endl;
+    }
 
     /**
      * @brief 生成并返回下一个唯一的 site_id
@@ -175,6 +193,11 @@ public:
     sqlite3_stmt* stmt_get_saves_           = nullptr;
     sqlite3_stmt* stmt_delete_save_         = nullptr;
     sqlite3_stmt* stmt_get_save_by_id_      = nullptr;
+    sqlite3_stmt* stmt_get_latest_auto_snap_    = nullptr;
+    sqlite3_stmt* stmt_get_events_after_rowid_  = nullptr;
+    sqlite3_stmt* stmt_insert_auto_snap_        = nullptr;
+    sqlite3_stmt* stmt_delete_old_auto_snaps_   = nullptr;
+    sqlite3_stmt* stmt_get_event_count_         = nullptr;
 
     /**
      * @brief 构造 Server，初始化数据库表结构并预编译 SQL 语句，启动 db_thread_
@@ -298,6 +321,10 @@ public:
             "shapes TEXT NOT NULL"
             ");",
             nullptr, nullptr, nullptr);
+        
+        sqlite3_exec(db_,
+            "ALTER TABLE saves ADD COLUMN is_auto INTEGER DEFAULT 0;",
+            nullptr, nullptr, nullptr);
         sqlite3_exec(db_,
             "CREATE INDEX IF NOT EXISTS idx_saves_doc_id ON saves(doc_id);",
             nullptr, nullptr, nullptr);
@@ -317,6 +344,22 @@ public:
         sqlite3_prepare_v2(db_,
             "SELECT name, doc_state, shapes FROM saves WHERE id=? AND doc_id=?;",
             -1, &stmt_get_save_by_id_, nullptr);
+
+        sqlite3_prepare_v2(db_,
+            "SELECT id, doc_state, shapes FROM saves WHERE doc_id=? AND is_auto=1 ORDER BY id DESC LIMIT 1;",
+            -1, &stmt_get_latest_auto_snap_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "SELECT payload FROM events WHERE doc_id=? AND id>? ORDER BY id ASC;",
+            -1, &stmt_get_events_after_rowid_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "INSERT INTO saves (doc_id, created_by, name, is_quick, is_auto, doc_state, shapes) VALUES (?,?,?,0,1,?,?);",
+            -1, &stmt_insert_auto_snap_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "DELETE FROM saves WHERE doc_id=? AND is_auto=1 AND id < (SELECT MAX(id) FROM saves WHERE doc_id=? AND is_auto=1);",
+            -1, &stmt_delete_old_auto_snaps_, nullptr);
+        sqlite3_prepare_v2(db_,
+            "SELECT COUNT(*) FROM events WHERE doc_id=?;",
+            -1, &stmt_get_event_count_, nullptr);
 
         db_thread_ = std::thread(&Server::db_worker_loop, this);
     }
@@ -353,6 +396,11 @@ public:
         sqlite3_finalize(stmt_get_saves_);
         sqlite3_finalize(stmt_delete_save_);
         sqlite3_finalize(stmt_get_save_by_id_);
+        sqlite3_finalize(stmt_get_latest_auto_snap_);
+        sqlite3_finalize(stmt_get_events_after_rowid_);
+        sqlite3_finalize(stmt_insert_auto_snap_);
+        sqlite3_finalize(stmt_delete_old_auto_snaps_);
+        sqlite3_finalize(stmt_get_event_count_);
 
         if (db_) sqlite3_close(db_);
     }
@@ -452,6 +500,87 @@ public:
         return username + "_" + std::to_string(ts);
     }
 
+    /**
+     * @brief 解析邀请类型字符串，输出 max_uses 和 expires_at
+     * @param data        消息 JSON（用于读取 expire_hours）
+     * @param invite_type "once" | "permanent" | "timed"
+     * @param max_uses    [out] 最大使用次数
+     * @param expires_at  [out] 过期时间戳（0 表示不过期）
+     */
+    static void parse_invite_params(const json& data, const std::string& invite_type,
+                                    int& max_uses, int64_t& expires_at) {
+        max_uses = 1;
+        expires_at = 0;
+        if (invite_type == "permanent") {
+            max_uses = -1;
+        } else if (invite_type == "timed") {
+            max_uses = -1;
+            int hours = data.value("expire_hours", 24);
+            auto now = std::chrono::system_clock::now().time_since_epoch();
+            expires_at = std::chrono::duration_cast<std::chrono::seconds>(now).count() + hours * 3600;
+        }
+    }
+
+    /**
+     * @brief 在 db_thread_ 上生成一个不与数据库冲突的唯一邀请码
+     * @return 6 位大写字母+数字邀请码
+     */
+    std::string generate_unique_code_db() {
+        std::string code;
+        while (true) {
+            code = generate_invite_code();
+            sqlite3_reset(stmt_check_code_exists_);
+            sqlite3_bind_text(stmt_check_code_exists_, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+            bool exists = (sqlite3_step(stmt_check_code_exists_) == SQLITE_ROW);
+            if (!exists) break;
+        }
+        return code;
+    }
+
+    /**
+     * @brief 在 db_thread_ 上向 invite_codes 表插入一条记录
+     */
+    void insert_invite_db(const std::string& code, const std::string& doc_id,
+                          const std::string& room_name, const std::string& created_by,
+                          int max_uses, int64_t expires_at) {
+        sqlite3_reset(stmt_insert_invite_);
+        sqlite3_bind_text(stmt_insert_invite_, 1, code.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt_insert_invite_, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt_insert_invite_, 3, room_name.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt_insert_invite_, 4, created_by.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt_insert_invite_, 5, max_uses);
+        if (expires_at > 0) sqlite3_bind_int64(stmt_insert_invite_, 6, expires_at);
+        else sqlite3_bind_null(stmt_insert_invite_, 6);
+        sqlite3_step(stmt_insert_invite_);
+    }
+
+    /**
+     * @brief 在 db_thread_ 上检查 uname 是否是 doc_id 的创建者
+     * @return true 表示是创建者
+     */
+    bool check_is_owner_db(const std::string& doc_id, const std::string& uname) {
+        sqlite3_reset(stmt_get_owner_);
+        sqlite3_bind_text(stmt_get_owner_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(stmt_get_owner_) == SQLITE_ROW) {
+            std::string creator = reinterpret_cast<const char*>(sqlite3_column_text(stmt_get_owner_, 0));
+            return creator == uname;
+        }
+        return false;
+    }
+
+    /**
+     * @brief 在 db_thread_ 上查询 doc_id 对应的房间名
+     * @return 房间名，查不到时返回空字符串
+     */
+    std::string query_room_name_db(const std::string& doc_id) {
+        std::string room_name;
+        sqlite3_reset(stmt_get_room_name_);
+        sqlite3_bind_text(stmt_get_room_name_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+        if (sqlite3_step(stmt_get_room_name_) == SQLITE_ROW)
+            room_name = reinterpret_cast<const char*>(sqlite3_column_text(stmt_get_room_name_, 0));
+        return room_name;
+    }
+
 private:
     /**
      * @brief 数据库工作线程主循环，串行消费 db_queue_ 中的任务
@@ -471,7 +600,11 @@ private:
     }
 };
 
-void Room::save_event(const std::string& payload) { server_.push_db_task(doc_id_, payload); }
+void Room::save_event(const std::string& payload) {
+    server_.push_db_task(doc_id_, payload);
+    ++event_count_;
+    maybe_request_auto_snapshot();
+}
 
 /**
  * @brief 代表一个 WebSocket 客户端连接
@@ -588,36 +721,13 @@ public:
                         std::string doc_id = server_.generate_doc_id(username_);
                         std::string room_name = data.value("room_name", "未命名房间");
                         std::string invite_type = data.value("invite_type", "once");
-                        int max_uses = 1;
-                        int64_t expires_at = 0;
-                        if (invite_type == "permanent") {
-                            max_uses = -1;
-                        } else if (invite_type == "timed") {
-                            max_uses = -1;
-                            int hours = data.value("expire_hours", 24);
-                            auto now = std::chrono::system_clock::now().time_since_epoch();
-                            expires_at = std::chrono::duration_cast<std::chrono::seconds>(now).count() + hours * 3600;
-                        }
+                        int max_uses; int64_t expires_at;
+                        Server::parse_invite_params(data, invite_type, max_uses, expires_at);
                         std::string uname = username_;
                         auto self = shared_from_this();
                         server_.post_db_task([this, self, doc_id, room_name, invite_type, max_uses, expires_at, uname]() {
-                            std::string code;
-                            while (true) {
-                                code = server_.generate_invite_code();
-                                sqlite3_reset(server_.stmt_check_code_exists_);
-                                sqlite3_bind_text(server_.stmt_check_code_exists_, 1, code.c_str(), -1, SQLITE_TRANSIENT);
-                                bool exists = (sqlite3_step(server_.stmt_check_code_exists_) == SQLITE_ROW);
-                                if (!exists) break;
-                            }
-                            sqlite3_reset(server_.stmt_insert_invite_);
-                            sqlite3_bind_text(server_.stmt_insert_invite_, 1, code.c_str(), -1, SQLITE_TRANSIENT);
-                            sqlite3_bind_text(server_.stmt_insert_invite_, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
-                            sqlite3_bind_text(server_.stmt_insert_invite_, 3, room_name.c_str(), -1, SQLITE_TRANSIENT);
-                            sqlite3_bind_text(server_.stmt_insert_invite_, 4, uname.c_str(), -1, SQLITE_TRANSIENT);
-                            sqlite3_bind_int(server_.stmt_insert_invite_, 5, max_uses);
-                            if (expires_at > 0) sqlite3_bind_int64(server_.stmt_insert_invite_, 6, expires_at);
-                            else sqlite3_bind_null(server_.stmt_insert_invite_, 6);
-                            sqlite3_step(server_.stmt_insert_invite_);
+                            std::string code = server_.generate_unique_code_db();
+                            server_.insert_invite_db(code, doc_id, room_name, uname, max_uses, expires_at);
 
                             json res = {{"type", "create_room_res"}, {"success", true},
                                         {"code", code}, {"doc_id", doc_id},
@@ -695,12 +805,7 @@ public:
                         sqlite3_bind_text(server_.stmt_insert_member_, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
                         sqlite3_step(server_.stmt_insert_member_);
 
-                        // 查出房间名
-                        std::string room_name;
-                        sqlite3_reset(server_.stmt_get_room_name_);
-                        sqlite3_bind_text(server_.stmt_get_room_name_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
-                        if (sqlite3_step(server_.stmt_get_room_name_) == SQLITE_ROW)
-                            room_name = reinterpret_cast<const char*>(sqlite3_column_text(server_.stmt_get_room_name_, 0));
+                        std::string room_name = server_.query_room_name_db(doc_id);
 
                         net::post(ws_.get_executor(), [self, this, room_ref, room_name, sid, uname]() {
                             json init_msg = {{"type", "init"}, {"site_id", sid}, {"room_name", room_name}};
@@ -764,11 +869,7 @@ public:
                             }
 
                             // 查房间名
-                            std::string room_name;
-                            sqlite3_reset(server_.stmt_get_room_name_);
-                            sqlite3_bind_text(server_.stmt_get_room_name_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
-                            if (sqlite3_step(server_.stmt_get_room_name_) == SQLITE_ROW)
-                                room_name = reinterpret_cast<const char*>(sqlite3_column_text(server_.stmt_get_room_name_, 0));
+                            std::string room_name = server_.query_room_name_db(doc_id);
 
                             net::post(ws_.get_executor(), [self, this, doc_id, room_name, req_site, uname]() {
                                 room_ = server_.get_or_create_room(doc_id);
@@ -791,60 +892,23 @@ public:
                 std::string msg_type = data.value("type", "");
                 if (msg_type == "gen_invite") {
                     std::string invite_type = data.value("invite_type", "once");
-                    int max_uses = 1;
-                    int64_t expires_at = 0;
-                    if (invite_type == "permanent") {
-                        max_uses = -1;
-                    } else if (invite_type == "timed") {
-                        max_uses = -1;
-                        int hours = data.value("expire_hours", 24);
-                        auto now = std::chrono::system_clock::now().time_since_epoch();
-                        expires_at = std::chrono::duration_cast<std::chrono::seconds>(now).count() + hours * 3600;
-                    }
+                    int max_uses; int64_t expires_at;
+                    Server::parse_invite_params(data, invite_type, max_uses, expires_at);
                     std::string uname = username_;
                     std::string doc_id = room_->doc_id();
                     auto self = shared_from_this();
                     server_.post_db_task([this, self, uname, doc_id, invite_type, max_uses, expires_at]() {
-                        // 验证创建者
-                        sqlite3_reset(server_.stmt_get_owner_);
-                        sqlite3_bind_text(server_.stmt_get_owner_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
-                        bool is_owner = false;
-                        if (sqlite3_step(server_.stmt_get_owner_) == SQLITE_ROW) {
-                            std::string creator = reinterpret_cast<const char*>(sqlite3_column_text(server_.stmt_get_owner_, 0));
-                            is_owner = (creator == uname);
-                        }
-
-                        if (!is_owner) {
+                        if (!server_.check_is_owner_db(doc_id, uname)) {
                             net::post(ws_.get_executor(), [self]() {
                                 self->send(R"({"type":"gen_invite_res","success":false,"msg":"只有房间创建者才能生成邀请码"})");
                             });
                             return;
                         }
 
-                        // 生成唯一码
-                        std::string code;
-                        while (true) {
-                            code = server_.generate_invite_code();
-                            sqlite3_reset(server_.stmt_check_code_exists_);
-                            sqlite3_bind_text(server_.stmt_check_code_exists_, 1, code.c_str(), -1, SQLITE_TRANSIENT);
-                            bool exists = (sqlite3_step(server_.stmt_check_code_exists_) == SQLITE_ROW);
-                            if (!exists) break;
-                        }
-                        std::string room_name = "未命名房间";
-                        sqlite3_reset(server_.stmt_get_room_name_);
-                        sqlite3_bind_text(server_.stmt_get_room_name_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
-                        if (sqlite3_step(server_.stmt_get_room_name_) == SQLITE_ROW)
-                            room_name = reinterpret_cast<const char*>(sqlite3_column_text(server_.stmt_get_room_name_, 0));
-
-                        sqlite3_reset(server_.stmt_insert_invite_);
-                        sqlite3_bind_text(server_.stmt_insert_invite_, 1, code.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(server_.stmt_insert_invite_, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(server_.stmt_insert_invite_, 3, room_name.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_text(server_.stmt_insert_invite_, 4, uname.c_str(), -1, SQLITE_TRANSIENT);
-                        sqlite3_bind_int(server_.stmt_insert_invite_, 5, max_uses);
-                        if (expires_at > 0) sqlite3_bind_int64(server_.stmt_insert_invite_, 6, expires_at);
-                        else sqlite3_bind_null(server_.stmt_insert_invite_, 6);
-                        sqlite3_step(server_.stmt_insert_invite_);
+                        std::string code = server_.generate_unique_code_db();
+                        std::string room_name = server_.query_room_name_db(doc_id);
+                        if (room_name.empty()) room_name = "未命名房间";
+                        server_.insert_invite_db(code, doc_id, room_name, uname, max_uses, expires_at);
 
                         json res = {{"type", "gen_invite_res"}, {"success", true},
                                     {"code", code}, {"invite_type", invite_type}};
@@ -863,15 +927,7 @@ public:
                         std::string doc_id = room_->doc_id();
                         auto self = shared_from_this();
                         server_.post_db_task([this, self, uname, doc_id, new_name]() {
-                            sqlite3_reset(server_.stmt_get_owner_);
-                            sqlite3_bind_text(server_.stmt_get_owner_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
-                            bool is_owner = false;
-                            if (sqlite3_step(server_.stmt_get_owner_) == SQLITE_ROW) {
-                                std::string creator = reinterpret_cast<const char*>(sqlite3_column_text(server_.stmt_get_owner_, 0));
-                                is_owner = (creator == uname);
-                            }
-
-                            if (!is_owner) {
+                            if (!server_.check_is_owner_db(doc_id, uname)) {
                                 net::post(ws_.get_executor(), [self]() {
                                     self->send(R"({"type":"rename_room_res","success":false,"msg":"只有房间创建者才能修改房间名"})");
                                 });
@@ -1078,6 +1134,42 @@ public:
                     });
                 } else if (msg_type == "cursor" || msg_type == "presence") {
                     room_->broadcast_except(this, payload);
+                } else if (msg_type == "submit_auto_snapshot") {
+                    // 客户端响应 request_auto_snapshot，上报当前 docState + shapes
+                    std::string doc_state = data.value("doc_state", "[]");
+                    std::string shapes_str = data.value("shapes", "[]");
+                    std::string uname = username_;
+                    std::string doc_id = room_->doc_id();
+                    auto room_ref = room_;
+                    auto self = shared_from_this();
+                    server_.post_db_task([this, self, room_ref, doc_id, uname, doc_state, shapes_str]() {
+                        // 插入自动快照
+                        sqlite3_reset(server_.stmt_insert_auto_snap_);
+                        sqlite3_bind_text(server_.stmt_insert_auto_snap_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(server_.stmt_insert_auto_snap_, 2, uname.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(server_.stmt_insert_auto_snap_, 3, "auto_snapshot", -1, SQLITE_STATIC);
+                        sqlite3_bind_text(server_.stmt_insert_auto_snap_, 4, doc_state.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(server_.stmt_insert_auto_snap_, 5, shapes_str.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_step(server_.stmt_insert_auto_snap_);
+
+                        // 清空 events 表
+                        sqlite3_reset(server_.stmt_clear_events_);
+                        sqlite3_bind_text(server_.stmt_clear_events_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_step(server_.stmt_clear_events_);
+
+                        // 删除旧的自动快照
+                        sqlite3_reset(server_.stmt_delete_old_auto_snaps_);
+                        sqlite3_bind_text(server_.stmt_delete_old_auto_snaps_, 1, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_bind_text(server_.stmt_delete_old_auto_snaps_, 2, doc_id.c_str(), -1, SQLITE_TRANSIENT);
+                        sqlite3_step(server_.stmt_delete_old_auto_snaps_);
+
+                        std::cout << "[AutoSnap] 文档 " << doc_id << " 自动快照已保存，events 表已清空。" << std::endl;
+
+                        // 重置 Room 的计数器和锁
+                        net::post(ws_.get_executor(), [room_ref]() {
+                            room_ref->reset_snapshot_state();
+                        });
+                    });
                 } else {
                     room_->save_event(payload); room_->broadcast_except(this, payload);
                 }
@@ -1172,6 +1264,21 @@ private:
     }
 };
 
+void Room::maybe_request_auto_snapshot() {
+    if (event_count_ < AUTO_SNAPSHOT_THRESHOLD) return;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (snapshot_requested_) return;
+        if (sessions_.empty()) return;
+        snapshot_requested_ = true;
+        // 向第一个在线 session 发出快照请求
+        Session* target = *sessions_.begin();
+        std::string req = json{{"type", "request_auto_snapshot"}}.dump();
+        target->send(req);
+        std::cout << "[AutoSnap] 向客户端请求文档 " << doc_id_ << " 的自动快照 (events=" << event_count_ << ")" << std::endl;
+    }
+}
+
 void Server::register_user(const std::string& username, Session* session) {
     std::lock_guard<std::mutex> lock(user_mutex_);
     auto it = active_users_.find(username);
@@ -1205,21 +1312,64 @@ void Room::broadcast_all(const std::string& message) {
     for (auto* session : sessions_) session->send_shared(shared_msg);
 }
 void Room::send_history(Session* session) {
-    // 在 db_thread_ 中查询历史
+    //先找最新自动快照，再下发快照后的增量 events
     auto self_server = &server_;
     std::string doc_id_copy = doc_id_;
     server_.post_db_task([session, self_server, doc_id_copy]() {
-        sqlite3_stmt* stmt = self_server->stmt_get_history_;
-        sqlite3_reset(stmt);
-        sqlite3_bind_text(stmt, 1, doc_id_copy.c_str(), -1, SQLITE_TRANSIENT);
-        json events = json::array();
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-            if (!text) continue;
-            try { events.push_back(json::parse(text)); } catch (...) {}
+        // 1. 查最新自动快照
+        int64_t snap_rowid = 0;
+        std::string snap_doc_state, snap_shapes;
+        bool has_snap = false;
+        {
+            sqlite3_stmt* stmt = self_server->stmt_get_latest_auto_snap_;
+            sqlite3_reset(stmt);
+            sqlite3_bind_text(stmt, 1, doc_id_copy.c_str(), -1, SQLITE_TRANSIENT);
+            if (sqlite3_step(stmt) == SQLITE_ROW) {
+                snap_rowid = sqlite3_column_int64(stmt, 0);
+                const char* ds = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+                const char* sh = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+                snap_doc_state = ds ? ds : "[]";
+                snap_shapes    = sh ? sh : "[]";
+                has_snap = true;
+            }
         }
-        std::string batch = json{{"type", "history_batch"}, {"events", std::move(events)}}.dump();
-        session->send(batch);
+
+        // 2. 若有快照，先发送 snapshot_init；否则下发全量 history_batch
+        if (has_snap) {
+            json snap_msg = {{"type", "snapshot_init"},
+                             {"doc_state", json::parse(snap_doc_state)},
+                             {"shapes",    json::parse(snap_shapes)}};
+            session->send(snap_msg.dump());
+
+            // 3. 查快照之后（id > snap_rowid）的增量 events
+            sqlite3_stmt* stmt2 = self_server->stmt_get_events_after_rowid_;
+            sqlite3_reset(stmt2);
+            sqlite3_bind_text(stmt2, 1, doc_id_copy.c_str(), -1, SQLITE_TRANSIENT);
+            sqlite3_bind_int64(stmt2, 2, snap_rowid);
+            json events = json::array();
+            while (sqlite3_step(stmt2) == SQLITE_ROW) {
+                const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt2, 0));
+                if (!text) continue;
+                try { events.push_back(json::parse(text)); } catch (...) {}
+            }
+            if (!events.empty()) {
+                std::string batch = json{{"type", "history_batch"}, {"events", std::move(events)}}.dump();
+                session->send(batch);
+            }
+        } else {
+            // 无自动快照，回退到全量回放
+            sqlite3_stmt* stmt = self_server->stmt_get_history_;
+            sqlite3_reset(stmt);
+            sqlite3_bind_text(stmt, 1, doc_id_copy.c_str(), -1, SQLITE_TRANSIENT);
+            json events = json::array();
+            while (sqlite3_step(stmt) == SQLITE_ROW) {
+                const char* text = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+                if (!text) continue;
+                try { events.push_back(json::parse(text)); } catch (...) {}
+            }
+            std::string batch = json{{"type", "history_batch"}, {"events", std::move(events)}}.dump();
+            session->send(batch);
+        }
     });
 }
 
