@@ -666,7 +666,7 @@ public:
                                     sqlite3_step(server_.stmt_use_code_);
                                 }
                                 res["success"] = true; res["doc_id"] = doc_id; res["room_name"] = room_name;
-                                std::cout << "🔓 用户 " << uname << " 使用邀请码 " << code << " 加入房间 " << doc_id << std::endl;
+                                std::cout << "用户 " << uname << " 使用邀请码 " << code << " 加入房间 " << doc_id << std::endl;
                             } else {
                                 res["success"] = false; res["msg"] = "邀请码无效或已被使用";
                             }
@@ -1258,7 +1258,7 @@ int main() {
         acceptor->listen(net::socket_base::max_listen_connections, ec);
         do_accept(ioc, acceptor, global_server);
 
-        std::cout << "🚀 服务器已启动: ws://0.0.0.0:9002" << std::endl;
+        std::cout << "服务器已启动: ws://0.0.0.0:9002" << std::endl;
 
         std::vector<std::thread> threads;
         threads.reserve(num_threads - 1);

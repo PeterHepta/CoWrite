@@ -576,19 +576,19 @@
 <!-- AI 总结侧边面板 -->
 <div id="ai-panel">
     <div id="ai-panel-header">
-        <h3>🤖 AI 总结</h3>
+        <h3>AI 总结</h3>
         <span id="ai-backend-badge"></span>
         <button id="btn-close-ai" title="关闭">✕</button>
     </div>
     <div id="ai-panel-body">
         <div id="ai-model-bar">
             <select id="ai-model-select">
-                <optgroup id="ai-optgroup-webgpu" label="⚡ WebGPU 模式（更快）">
+                <optgroup id="ai-optgroup-webgpu" label="WebGPU 模式（更快）">
                     <option value="webgpu:Qwen2.5-3B-Instruct-q4f16_1-MLC">Qwen2.5-3B（约2GB）</option>
                     <option value="webgpu:Qwen2.5-1.5B-Instruct-q4f16_1-MLC">Qwen2.5-1.5B（约1GB）</option>
                     <option value="webgpu:SmolLM2-1.7B-Instruct-q4f16_1-MLC">SmolLM2-1.7B（英文）</option>
                 </optgroup>
-                <optgroup label="🧩 WASM 模式（全浏览器兼容）">
+                <optgroup label="WASM 模式（全浏览器兼容）">
                     <option value="wasm:onnx-community/Qwen2.5-0.5B-Instruct">Qwen2.5-0.5B（约270MB）</option>
                     <option value="wasm:onnx-community/Qwen2.5-1.5B-Instruct">Qwen2.5-1.5B（约800MB）</option>
                     <option value="wasm:onnx-community/Qwen3-0.6B-ONNX">Qwen3-0.6B（约330MB）</option>
@@ -602,7 +602,7 @@
         <div id="ai-prompt-area">
             <textarea id="ai-prompt-input" placeholder="自定义提示词（可选，留空使用默认总结指令）"></textarea>
             <button id="btn-ai-summarize">读取文档并生成总结</button>
-            <button id="btn-ai-stop">⏹ 停止生成</button>
+            <button id="btn-ai-stop">停止生成</button>
         </div>
         <div id="ai-status-line"></div>
         <div id="ai-result-wrap">
@@ -645,7 +645,7 @@
 <div id="room-choice-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eaf2e5;">🏠</div>
+            <div class="flow-icon" style="background:#eaf2e5;"></div>
             <h2>进入 CoWrite</h2>
             <p>创建或加入一个房间开始协作</p>
         </div>
@@ -662,7 +662,7 @@
 <div id="room-name-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eaf2e5;">✏️</div>
+            <div class="flow-icon" style="background:#eaf2e5;"></div>
             <h2>创建新房间</h2>
             <p>给你的协作空间起个名字</p>
         </div>
@@ -677,7 +677,7 @@
 <div id="invite-type-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#f5f0dc;">🔑</div>
+            <div class="flow-icon" style="background:#f5f0dc;"></div>
             <h2>设置邀请码</h2>
             <p>选择邀请码的有效期类型</p>
         </div>
@@ -704,7 +704,7 @@
 <div id="room-created-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eaf2e5;">🎉</div>
+            <div class="flow-icon" style="background:#eaf2e5;"></div>
             <h2>房间创建成功</h2>
             <p id="invite-type-hint">分享邀请码，邀请伙伴加入</p>
         </div>
@@ -721,7 +721,7 @@
 <div id="join-room-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eaf2e5;">🔓</div>
+            <div class="flow-icon" style="background:#eaf2e5;"></div>
             <h2>加入房间</h2>
             <p>输入 6 位邀请码</p>
         </div>
@@ -737,7 +737,7 @@
 <div id="my-rooms-overlay" class="flow-overlay">
     <div class="flow-page" style="width:480px; max-width:96vw;">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#eaf2e5;">🕘</div>
+            <div class="flow-icon" style="background:#eaf2e5;"></div>
             <h2>我加入过的房间</h2>
             <p>点击任意房间直接进入</p>
         </div>
@@ -753,7 +753,7 @@
 <div id="gen-invite-overlay" class="flow-overlay">
     <div class="flow-page">
         <div class="flow-header">
-            <div class="flow-icon" style="background:#f5f0dc;">🔑</div>
+            <div class="flow-icon" style="background:#f5f0dc;"></div>
             <h2>邀请码已生成</h2>
             <p id="gen-invite-type-hint">分享给需要加入的人</p>
         </div>
@@ -769,22 +769,22 @@
 <div class="main-container">
     <div class="panel status-header">
         <div class="status-section status-section-brand">
-            <span class="brand-name">CoWrite ✨</span>
+            <span class="brand-name">CoWrite</span>
         </div>
         <div class="status-section status-section-doc">
             <span id="doc-display" style="color:var(--matcha-accent); font-weight:bold; font-size:13px;"></span>
-            <button id="btn-rename-room" title="修改房间名" class="action-btn blue" style="display:none;">✏️ 重命名</button>
-            <button id="btn-gen-invite" class="action-btn orange" style="display:none;">🔑 邀请</button>
-            <button id="btn-members" class="action-btn blue" style="display:none;">👥 成员</button>
-            <button id="btn-ai-panel" class="action-btn blue" style="display:none;">🤖 AI 总结</button>
+            <button id="btn-rename-room" title="修改房间名" class="action-btn blue" style="display:none;">重命名</button>
+            <button id="btn-gen-invite" class="action-btn orange" style="display:none;">邀请</button>
+            <button id="btn-members" class="action-btn blue" style="display:none;">成员</button>
+            <button id="btn-ai-panel" class="action-btn blue" style="display:none;">AI 总结</button>
             <button id="btn-leave-room" class="action-btn orange" style="display:none;">退出房间</button>
             <!-- 存档下拉 -->
             <div class="save-dropdown-wrap" id="save-dropdown-wrap">
-                <button id="btn-save-menu">💾 存档 ▾</button>
+                <button id="btn-save-menu">存档 ▾</button>
                 <div class="save-dropdown-menu" id="save-dropdown-menu">
-                    <div class="save-menu-item" id="menu-save">📁 保存</div>
-                    <div class="save-menu-item" id="menu-quicksave">⚡ 快速保存</div>
-                    <div class="save-menu-item" id="menu-load">📂 读取</div>
+                    <div class="save-menu-item" id="menu-save">保存</div>
+                    <div class="save-menu-item" id="menu-quicksave">快速保存</div>
+                    <div class="save-menu-item" id="menu-load">读取</div>
                 </div>
             </div>
             <div id="members-panel">
@@ -793,7 +793,7 @@
             </div>
         </div>
         <div class="status-section status-section-user">
-            <span id="status" class="status-pill waiting">等待登录 🟡</span>
+            <span id="status" class="status-pill waiting">等待登录</span>
             <span id="site-display" class="status-pill" style="color:#666;">身份未确认</span>
             <button id="btn-logout">退出登录</button>
         </div>
@@ -865,7 +865,7 @@
 <div id="load-save-overlay">
     <div class="load-save-modal">
         <div class="load-save-header">
-            <h3>📂 读取存档</h3>
+            <h3>读取存档</h3>
             <button id="btn-close-load-save">✕</button>
         </div>
         <div class="load-save-list" id="load-save-list"></div>
@@ -949,10 +949,7 @@ const colorPalette = ['#f56223', '#ffc107', '#00a8ff', '#00b894', '#9b59b6', '#e
 function getUserColor(siteId) { return colorPalette[siteId % colorPalette.length]; }
 
 function addLog(text, isOwn = false) {
-    let type = 'info';
-    if (/^✅/.test(text) || /^🎉/.test(text) || /^💾/.test(text) || /^📂/.test(text)) type = 'success';
-    else if (/^⚠️/.test(text) || /^❌/.test(text)) type = 'error';
-    else if (isOwn) type = 'success';
+    const type = isOwn ? 'success' : 'info';
     showToast(text, type, 4000);
 }
 
@@ -978,11 +975,11 @@ const ws = new WebSocket("ws://39.102.113.202:9002");
 ws.onopen = () => {
     if (myUsername && myPassword) {
         authOverlay.style.display = 'none';
-        statusSpan.innerText = "自动登录中 🟡";
+        statusSpan.innerText = "自动登录中";
         // 静默自动登录，不弹通知
         ws.send(JSON.stringify({ type: "login", username: myUsername, password: myPassword }));
     } else {
-        statusSpan.innerText = "已连网，请登录 🟡";
+        statusSpan.innerText = "已连网，请登录";
         // 静默等待登录
     }
 };
@@ -1107,8 +1104,8 @@ document.getElementById('btn-copy-code').onclick = () => {
 
 document.getElementById('btn-enter-room').onclick = () => {
     roomCreatedOverlay.style.display = 'none';
-    statusSpan.innerText = "进入房间中 🟡";
-    docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
+    statusSpan.innerText = "进入房间中";
+    docDisplay.innerText = `${currentRoom.room_name || currentRoom.doc_id}`;
     ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
 };
 
@@ -1320,7 +1317,7 @@ function removeShape(id, broadcast) {
         if (id === selectedShapeId) deselectShape();
         if (broadcast) {
             ws.send(JSON.stringify({ type: "shape_delete", id }));
-            addLog(`🗑️ 删除图形 [${type}]`, true);
+            addLog(`删除图形 [${type}]`, true);
         }
         updateTextWrap();
     }
@@ -1386,7 +1383,7 @@ canvas.addEventListener('click', (e) => {
     shapes.push(s);
     syncShapeEl(s);
     ws.send(JSON.stringify({ type: "shape_add", shape: s }));
-    addLog(`➕ 插入图形 [${s.type}]`, true);
+    addLog(`插入图形 [${s.type}]`, true);
     cancelShapeTool();
     selectShape(s.id);
     updateTextWrap();
@@ -1533,13 +1530,13 @@ function handleMessage(data) {
             btnLogout.style.display = 'inline-block';
             localStorage.setItem('myUsername', myUsername);
             localStorage.setItem('myPassword', myPassword);
-            siteDisplay.innerText = `👤 ${myUsername}`;
-            addLog(`✅ 登录成功！欢迎回来，${myUsername}！`, true);
+            siteDisplay.innerText = `${myUsername}`;
+            addLog(`登录成功！欢迎回来，${myUsername}！`, true);
             if (currentRoom) {
-                statusSpan.innerText = "重新加入房间中 🟡";
+                statusSpan.innerText = "重新加入房间中";
                 ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
             } else {
-                statusSpan.innerText = "已登录，选择房间 🟡";
+                statusSpan.innerText = "已登录，选择房间";
                 roomChoiceOverlay.style.display = 'flex';
             }
         } else {
@@ -1562,7 +1559,7 @@ function handleMessage(data) {
             };
             inviteTypeHint.innerText = hints[data.invite_type] || '';
             roomCreatedOverlay.style.display = 'flex';
-            addLog(`🎉 房间「${data.room_name}」已创建，邀请码: ${data.code}`, true);
+            addLog(`房间「${data.room_name}」已创建，邀请码: ${data.code}`, true);
         } else {
             showToast(data.msg, 'error');
         }
@@ -1577,7 +1574,7 @@ function handleMessage(data) {
             };
             genInviteTypeHint.innerText = hints[data.invite_type] || '';
             genInviteOverlay.style.display = 'flex';
-            addLog(`🔑 新邀请码已生成: ${data.code}`, true);
+            addLog(`新邀请码已生成: ${data.code}`, true);
         } else {
             showToast(data.msg || '生成邀请码失败', 'error');
         }
@@ -1587,8 +1584,8 @@ function handleMessage(data) {
             currentRoom = { doc_id: data.doc_id, room_name: data.room_name };
             localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
             joinRoomOverlay.style.display = 'none';
-            statusSpan.innerText = "进入房间中 🟡";
-            docDisplay.innerText = `📄 ${data.room_name || data.doc_id}`;
+            statusSpan.innerText = "进入房间中";
+            docDisplay.innerText = `${data.room_name || data.doc_id}`;
             ws.send(JSON.stringify({ type: "join", doc_id: currentRoom.doc_id, requested_site_id: mySiteId || 0 }));
         } else {
             showToast(data.msg, 'error');
@@ -1630,8 +1627,8 @@ function handleMessage(data) {
                 myRoomsOverlay.style.display = 'none';
                 currentRoom = { doc_id: room.doc_id, room_name: room.room_name };
                 localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
-                statusSpan.innerText = "进入房间中 🟡";
-                docDisplay.innerText = `📄 ${room.room_name || room.doc_id}`;
+                statusSpan.innerText = "进入房间中";
+                docDisplay.innerText = `${room.room_name || room.doc_id}`;
                 ws.send(JSON.stringify({ type: "rejoin_room", doc_id: room.doc_id, requested_site_id: mySiteId || 0 }));
             };
             myRoomsList.appendChild(card);
@@ -1645,8 +1642,8 @@ function handleMessage(data) {
         if (data.success) {
             currentRoom.room_name = data.room_name;
             localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
-            docDisplay.innerText = `📄 ${data.room_name}`;
-            addLog(`✏️ 房间已重命名为「${data.room_name}」`, true);
+            docDisplay.innerText = `${data.room_name}`;
+            addLog(`房间已重命名为「${data.room_name}」`, true);
         } else {
             showToast(data.msg, 'error');
         }
@@ -1673,7 +1670,7 @@ function handleMessage(data) {
     }
     else if (data.type === "save_snapshot_res") {
         if (data.success) {
-            const label = data.is_quick ? '⚡ 快速存档已更新' : `💾 已保存存档「${data.name}」`;
+            const label = data.is_quick ? '快速存档已更新' : `已保存存档「${data.name}」`;
             addLog(label, true);
         }
     }
@@ -1691,7 +1688,7 @@ function handleMessage(data) {
     else if (data.type === "load_save_applied") {
         applySnapshot({ docState: data.doc_state, shapes: data.shapes });
         document.getElementById('load-save-overlay').classList.remove('open');
-        addLog(`📂 存档「${data.name}」已被 ${escapeHtml(data.applied_by)} 读取并应用`, true);
+        addLog(`存档「${data.name}」已被 ${escapeHtml(data.applied_by)} 读取并应用`, true);
     }
     else if (data.type === "delete_save_res") {
         if (data.success) {
@@ -1716,11 +1713,11 @@ function handleMessage(data) {
             currentRoom.room_name = data.room_name;
             localStorage.setItem('currentRoom', JSON.stringify(currentRoom));
         }
-        statusSpan.innerText = "已进入房间 🟢";
+        statusSpan.innerText = "已进入房间";
         statusSpan.classList.remove('waiting');
         statusSpan.classList.add('online');
-        if (currentRoom) docDisplay.innerText = `📄 ${currentRoom.room_name || currentRoom.doc_id}`;
-        siteDisplay.innerText = `👤 ${myUsername} (Site: ${mySiteId})`;
+        if (currentRoom) docDisplay.innerText = `${currentRoom.room_name || currentRoom.doc_id}`;
+        siteDisplay.innerText = `${myUsername} (Site: ${mySiteId})`;
         btnGenInvite.style.display = 'inline-flex';
         btnRenameRoom.style.display = 'inline-flex';
         document.getElementById('btn-leave-room').style.display = 'inline-flex';
@@ -2062,7 +2059,7 @@ function openLoadModal(saves) {
 
         card.innerHTML = `
             <div class="save-slot-info">
-                <div class="save-slot-name">${escapeHtml(save.name)}${save.is_quick ? ' ⚡' : ''}</div>
+                <div class="save-slot-name">${escapeHtml(save.name)}${save.is_quick ? ' [Q]' : ''}</div>
                 <div class="save-slot-meta">保存于 ${dateStr}，由 ${escapeHtml(save.created_by)} 创建</div>
             </div>
             <button class="save-slot-del">删除</button>`;
@@ -2109,11 +2106,11 @@ function showSaveBtn() {
 }
 
 function showToast(msg, type = 'info', duration = 3500) {
-    const icons = { info: 'ℹ️', success: '✅', warn: '⚠️', error: '❌' };
+    const icons = { info: '[i]', success: '[ok]', warn: '[!]', error: '[x]' };
     const container = document.getElementById('toast-container');
     const el = document.createElement('div');
     el.className = `toast toast-${type}`;
-    el.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span>
+    el.innerHTML = `<span class="toast-icon">${icons[type] || '[i]'}</span>
         <span class="toast-body"><span class="toast-msg">${msg}</span></span>
         <button class="toast-close" onclick="dismissToast(this.closest('.toast'))">✕</button>`;
     container.appendChild(el);
@@ -2220,13 +2217,13 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
     async function init() {
         webgpuAvailable = await detectWebGPU();
         if (webgpuAvailable) {
-            badge.textContent = '⚡ WebGPU 可用';
+            badge.textContent = 'WebGPU 可用';
             badge.className = 'webgpu';
             modelSel.value = 'webgpu:Qwen2.5-3B-Instruct-q4f16_1-MLC';
         } else {
-            badge.textContent = '🧩 WASM 模式';
+            badge.textContent = 'WASM 模式';
             badge.className = 'wasm';
-            webgpuOptgroup.label = '⚡ WebGPU（当前设备不支持）';
+            webgpuOptgroup.label = 'WebGPU（当前设备不支持）';
             modelSel.value = 'wasm:onnx-community/Qwen2.5-0.5B-Instruct';
         }
     }
@@ -2263,7 +2260,7 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
                         progressLabel.textContent = p.text || `加载中 ${pct}%`;
                     }
                 });
-                badge.textContent = '⚡ WebGPU';
+                badge.textContent = 'WebGPU';
                 badge.className = 'webgpu';
                 loadedModelKey = val;
                 progressFill.style.width = '100%';
@@ -2274,7 +2271,7 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
                 return true;
             } else {
                 // WASM 模式：在 Web Worker 里加载，主线程不卡
-                badge.textContent = '🧩 WASM';
+                badge.textContent = 'WASM';
                 badge.className = 'wasm';
                 setStatus('正在后台加载模型...');
 
@@ -2415,7 +2412,7 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
         loadedModelKey = null;
         const { backend } = parseModel(modelSel.value);
         setStatus('已选择新模型，点击按钮时将重新加载');
-        badge.textContent = backend === 'webgpu' ? '⚡ WebGPU' : '🧩 WASM';
+        badge.textContent = backend === 'webgpu' ? 'WebGPU' : 'WASM';
         badge.className   = backend;
     };
 })();
