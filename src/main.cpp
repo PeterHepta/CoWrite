@@ -402,7 +402,7 @@ public:
         sqlite3_finalize(stmt_delete_old_auto_snaps_);
         sqlite3_finalize(stmt_get_event_count_);
 
-        if (db_) sqlite3_close(db_);
+        sqlite3_close(db_);
     }
 
     /**

@@ -880,7 +880,6 @@
 const statusSpan = document.getElementById('status');
 const siteDisplay = document.getElementById('site-display');
 const docDisplay = document.getElementById('doc-display');
-const logPanel = document.getElementById('log');
 const authOverlay = document.getElementById('auth-overlay');
 const btnLogout = document.getElementById('btn-logout');
 const roomChoiceOverlay = document.getElementById('room-choice-overlay');
@@ -974,17 +973,10 @@ function escapeHtml(str) {
 function rebuildQuill(state) {
     const ops = [];
     for (const item of state) {
-        if (typeof item.char === 'string') {
-            if (item.char.length > 0) {
-                const op = { insert: item.char };
-                if (Object.keys(item.attributes).length > 0) op.attributes = item.attributes;
-                ops.push(op);
-            }
-        } else {
-            const op = { insert: item.char };
-            if (Object.keys(item.attributes).length > 0) op.attributes = item.attributes;
-            ops.push(op);
-        }
+        if (typeof item.char === 'string' && item.char.length === 0) continue;
+        const op = { insert: item.char };
+        if (Object.keys(item.attributes).length > 0) op.attributes = item.attributes;
+        ops.push(op);
     }
     if (ops.length > 0) quill.setContents({ ops }, 'silent');
 }
@@ -2018,8 +2010,6 @@ document.getElementById('menu-load').onclick = () => {
     ws.send(JSON.stringify({ type: "get_saves" }));
 };
 
-let pendingOpenModal = false;
-
 function openLoadModal(saves) {
     const overlay = document.getElementById('load-save-overlay');
     const list = document.getElementById('load-save-list');
@@ -2092,7 +2082,7 @@ function showToast(msg, type = 'info', duration = 3500) {
     const container = document.getElementById('toast-container');
     const el = document.createElement('div');
     el.className = `toast toast-${type}`;
-    el.innerHTML = `<span class="toast-icon">${icons[type] || '[i]'}</span>
+    el.innerHTML = `<span class="toast-icon">${icons[type]}</span>
         <span class="toast-body"><span class="toast-msg">${msg}</span></span>
         <button class="toast-close" onclick="dismissToast(this.closest('.toast'))">✕</button>`;
     container.appendChild(el);
@@ -2182,18 +2172,6 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
             const adapter = await navigator.gpu.requestAdapter();
             return !!adapter;
         } catch { return false; }
-    }
-
-    function waitFor(getter, timeout = 15000) {
-        return new Promise((resolve, reject) => {
-            if (getter()) { resolve(getter()); return; }
-            const start = Date.now();
-            const t = setInterval(() => {
-                const v = getter();
-                if (v) { clearInterval(t); resolve(v); }
-                else if (Date.now() - start > timeout) { clearInterval(t); reject(new Error('库加载超时')); }
-            }, 100);
-        });
     }
 
     async function init() {
@@ -2311,7 +2289,6 @@ function showPrompt(msg, defaultVal, onOk, onCancel) {
     }
 
     function getDocText() {
-        if (typeof docState === 'undefined' || !docState.length) return '';
         return docState.filter(c => c.char && c.char !== '\x00').map(c => c.char).join('');
     }
 
