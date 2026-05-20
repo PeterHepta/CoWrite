@@ -33,7 +33,11 @@ Icon
 *.swp
 *.bak
 *~
-.stackdumpfrontend/ai_bundle/node_modules/
+.stackdump
 frontend/ai_bundle/node_modules/
+
+# Python (tests/)
+__pycache__/
+*.pyc
 
 CLAUDE.md
