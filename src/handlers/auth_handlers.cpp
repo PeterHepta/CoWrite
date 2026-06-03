@@ -37,7 +37,7 @@ void Session::handle_login(const json& data, const std::string& /*raw*/) {
             json res = {{"type", "login_res"}};
             if (login_success) {
                 username_ = u;
-                server_.register_user(username_, this);
+                server_.register_user(username_, self);
                 res["success"] = true; res["username"] = u; res["msg"] = "Login successful!";
             } else {
                 res["success"] = false; res["msg"] = "Invalid credentials!";

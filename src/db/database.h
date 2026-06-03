@@ -36,7 +36,7 @@ public:
 
     sqlite3* handle() { return db_; }
 
-    // 预编译语句直接公开 —— handler 在 worker 线程内通过它们拼装 SQL 调用
+    // handler 在 worker 线程内通过它们拼装 SQL 调用
     sqlite3_stmt* stmt_insert_event_        = nullptr;
     sqlite3_stmt* stmt_insert_user_         = nullptr;
     sqlite3_stmt* stmt_login_               = nullptr;

@@ -21,12 +21,16 @@ std::shared_ptr<Room> Server::get_or_create_room(const std::string& doc_id) {
     return it->second;
 }
 
-void Server::register_user(const std::string& username, Session* session) {
+void Server::register_user(const std::string& username, std::shared_ptr<Session> session) {
     std::lock_guard<std::mutex> lock(user_mutex_);
     auto it = active_users_.find(username);
-    if (it != active_users_.end() && it->second != session) {
-        it->second->send(R"({"type": "kicked", "msg": "您的账号已在其他设备登录，您被迫下线！"})");
-        std::cout << "用户 " << username << " 的旧设备被踢下线。" << std::endl;
+    if (it != active_users_.end()) {
+        if (auto old = it->second.lock()) {
+            if (old.get() != session.get()) {
+                old->send(R"({"type": "kicked", "msg": "您的账号已在其他设备登录，您被迫下线！"})");
+                std::cout << "用户 " << username << " 的旧设备被踢下线。" << std::endl;
+            }
+        }
     }
     active_users_[username] = session;
 }
@@ -34,20 +38,24 @@ void Server::register_user(const std::string& username, Session* session) {
 void Server::unregister_user(const std::string& username, Session* session) {
     std::lock_guard<std::mutex> lock(user_mutex_);
     auto it = active_users_.find(username);
-    if (it != active_users_.end() && it->second == session) {
+    if (it == active_users_.end()) return;
+    auto cur = it->second.lock();
+    // 仅当 map 中仍是当前 session（或已过期）时才清除，避免误删新登录的 session
+    if (!cur || cur.get() == session) {
         active_users_.erase(it);
     }
 }
 
 bool Server::is_user_online(const std::string& username) {
     std::lock_guard<std::mutex> lock(user_mutex_);
-    return active_users_.count(username) > 0;
+    auto it = active_users_.find(username);
+    return it != active_users_.end() && !it->second.expired();
 }
 
-Session* Server::get_user_session(const std::string& username) {
+std::shared_ptr<Session> Server::get_user_session(const std::string& username) {
     std::lock_guard<std::mutex> lock(user_mutex_);
     auto it = active_users_.find(username);
-    return it != active_users_.end() ? it->second : nullptr;
+    return it != active_users_.end() ? it->second.lock() : nullptr;
 }
 
 std::string Server::generate_doc_id(const std::string& username) {

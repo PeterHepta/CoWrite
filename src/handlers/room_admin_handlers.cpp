@@ -91,8 +91,8 @@ void Session::handle_get_room_members(const json& /*data*/, const std::string& /
                 json m;
                 m["username"] = uname;
                 m["is_owner"] = (uname == room_owner);
-                Session* user_session = server_.get_user_session(uname);
-                if (user_session && room_ && room_->has_session(user_session)) {
+                auto user_session = server_.get_user_session(uname);
+                if (user_session && room_ && room_->has_session(user_session.get())) {
                     m["status"] = "in_room";
                 } else if (user_session) {
                     m["status"] = "online";
